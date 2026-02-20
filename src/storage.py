@@ -144,6 +144,19 @@ def get_take_wav_path(project_dir: str, wav_filename: str) -> str:
     return str(Path(project_dir) / TAKES_DIR / wav_filename)
 
 
+def get_wav_duration_seconds(project_dir: str, wav_filename: str) -> float:
+    """WAV の長さを秒で返す。ファイルが存在しない・読めない場合は 0.0。"""
+    try:
+        import soundfile as sf
+        path = Path(project_dir) / TAKES_DIR / wav_filename
+        if not path.is_file():
+            return 0.0
+        info = sf.info(str(path))
+        return float(info.duration)
+    except Exception:
+        return 0.0
+
+
 def list_take_wav_paths(project_dir: str) -> list[tuple[str, str]]:
     """(take_id, wav_path) のリストを返す。メタに登録されているテイクのみ。"""
     proj = load_project(project_dir)

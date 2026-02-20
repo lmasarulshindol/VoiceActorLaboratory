@@ -1,7 +1,7 @@
 """
 アプリ設定の永続化。QSettings でテーマ・フォント・最近開いたプロジェクト等を保存する。
 """
-from PyQt6.QtCore import QSettings
+from PyQt6.QtCore import QSettings, QByteArray
 
 ORG = "VoiceActorLaboratory"
 APP = "VoiceActorLaboratory"
@@ -83,3 +83,34 @@ def get_waveform_design() -> int:
 
 def set_waveform_design(design_id: int) -> None:
     get_settings().setValue("waveform_design", max(0, min(9, design_id)))
+
+
+def get_export_last_dir() -> str:
+    """前回エクスポートで選んだフォルダ。未設定は空文字。"""
+    v = get_settings().value("export_last_dir", "", type=str)
+    return v or ""
+
+
+def set_export_last_dir(path: str) -> None:
+    """エクスポート先として選んだフォルダを記憶する。"""
+    get_settings().setValue("export_last_dir", path or "")
+
+
+def get_main_window_geometry() -> bytes | None:
+    """メインウィンドウの geometry（位置・サイズ）。未設定は None。"""
+    v = get_settings().value("main_window_geometry", None)
+    if v is None:
+        return None
+    if isinstance(v, QByteArray):
+        return bytes(v.data())
+    if isinstance(v, (bytes, bytearray)):
+        return bytes(v)
+    return None
+
+
+def set_main_window_geometry(data: bytes | None) -> None:
+    """メインウィンドウの geometry を保存する。"""
+    if data is None:
+        get_settings().remove("main_window_geometry")
+    else:
+        get_settings().setValue("main_window_geometry", QByteArray(data))

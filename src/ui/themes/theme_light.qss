@@ -1,0 +1,215 @@
+/* Voice Actor Laboratory - Light theme. Placeholders are replaced by theme_loader. */
+
+QWidget, QMainWindow {
+    background-color: {{WINDOW_BG}};
+    color: {{TEXT_HEADING}};
+}
+
+QMessageBox {
+    background-color: {{CARD_BG}};
+    color: {{TEXT_BODY}};
+}
+
+QMessageBox QLabel {
+    color: {{TEXT_BODY}};
+}
+
+QMessageBox QPushButton {
+    background-color: {{CARD_BORDER}};
+    color: {{TEXT_HEADING}};
+    border: 1px solid #9ca3af;
+    border-radius: 4px;
+    min-height: 24px;
+    min-width: 60px;
+}
+
+QMessageBox QPushButton:hover {
+    background-color: #e5e7eb;
+}
+
+QDialog {
+    background-color: {{CARD_BG}};
+    color: {{TEXT_BODY}};
+}
+
+QDialogButtonBox QPushButton {
+    background-color: #f3f4f6;
+    color: {{TEXT_HEADING}};
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    min-height: 24px;
+}
+
+QDialogButtonBox QPushButton:hover {
+    background-color: #e5e7eb;
+}
+
+QMenu {
+    background-color: {{CARD_BG}};
+    color: {{TEXT_BODY}};
+}
+
+QMenu::item:selected {
+    background-color: {{CARD_BORDER}};
+    color: {{TEXT_HEADING}};
+}
+
+QComboBox {
+    background-color: {{CARD_BG}};
+    color: {{TEXT_HEADING}};
+    border: 1px solid {{CARD_BORDER}};
+    border-radius: 4px;
+    padding: 6px 10px;
+    min-height: 20px;
+}
+
+QComboBox:hover {
+    border-color: #9ca3af;
+}
+
+QComboBox::drop-down {
+    border: none;
+    background: transparent;
+}
+
+QComboBox QAbstractItemView {
+    background-color: {{CARD_BG}};
+    color: {{TEXT_HEADING}};
+    selection-background-color: {{TAKE_SELECTION_BG}};
+}
+
+QListWidget {
+    background-color: {{CARD_BG}};
+    color: {{TEXT_BODY}};
+    border: 1px solid {{CARD_BORDER}};
+    border-radius: 4px;
+}
+
+QListWidget::item:selected {
+    background-color: {{TAKE_SELECTION_BG}};
+    color: {{TEXT_HEADING}};
+}
+
+QPlainTextEdit {
+    background-color: {{CARD_BG}};
+    color: {{TEXT_BODY}};
+}
+
+QLabel#heading {
+    font-size: 14pt;
+    font-weight: bold;
+    color: {{TEXT_HEADING}};
+}
+
+QLabel#body {
+    font-size: 11pt;
+    color: {{TEXT_BODY}};
+    line-height: 1.4;
+}
+
+QLabel#caption {
+    font-size: 10pt;
+    color: {{TEXT_CAPTION}};
+}
+
+QFrame#welcomeCard {
+    background-color: {{CARD_BG}};
+    border: 1px solid {{CARD_BORDER}};
+    border-radius: 8px;
+    padding: 0;
+}
+
+QPushButton#accentButton {
+    background-color: {{COLOR_ACCENT}};
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 18px;
+    font-size: 11pt;
+    min-height: 20px;
+}
+
+QPushButton#accentButton:hover:!pressed {
+    background-color: #0b7a6f;
+}
+
+QPushButton#recentProjectButton {
+    text-align: left;
+    padding: 6px 10px;
+    border: 1px solid {{CARD_BORDER}};
+    border-radius: 4px;
+    background-color: #f9fafb;
+    color: {{TEXT_BODY}};
+    min-height: 20px;
+}
+
+QPushButton#recentProjectButton:hover {
+    background-color: #f3f4f6;
+}
+
+QPushButton#recordToggleBtn {
+    background-color: #cc0000;
+    color: white;
+    border: none;
+    border-radius: 22px;
+    font-size: 18px;
+}
+
+QPushButton#recordToggleBtn:hover:!pressed {
+    background-color: #ee0000;
+}
+
+QPushButton#recordToggleBtn:disabled {
+    background-color: #888;
+}
+
+QPushButton#recordStopBtn,
+QPushButton#playPauseBtn,
+QPushButton#playStopBtn {
+    background-color: #333;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 16px;
+}
+
+QPushButton#recordStopBtn:hover:!pressed,
+QPushButton#playPauseBtn:hover:!pressed,
+QPushButton#playStopBtn:hover:!pressed {
+    background-color: #555;
+}
+
+QPushButton#recordStopBtn:disabled,
+QPushButton#playPauseBtn:disabled,
+QPushButton#playStopBtn:disabled {
+    background-color: #ccc;
+    color: #666;
+}
+
+QWidget#sidebar {
+    background-color: {{SIDEBAR_BG}};
+    border-right: 1px solid {{CARD_BORDER}};
+}
+
+QGroupBox {
+    color: {{TEXT_HEADING}};
+    border-color: {{CARD_BORDER}};
+}
+
+QRadioButton, QCheckBox {
+    color: {{TEXT_BODY}};
+}
+
+QStatusBar {
+    color: {{TEXT_CAPTION}};
+}
+
+QLabel#shortcutLabel {
+    color: {{TEXT_CAPTION}};
+    margin-left: 12px;
+}
+
+QLabel#recordingLabel {
+    color: {{TEXT_BODY}};
+    min-width: 60px;
+}

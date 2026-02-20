@@ -51,6 +51,7 @@ class WaveformWidget(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setFixedHeight(72)
         self.setMinimumWidth(120)
@@ -140,6 +141,10 @@ class WaveformWidget(QWidget):
         y_vals = _downsample(samples, w)
         if len(y_vals) == 0:
             return
+        if self._duration_seconds <= 0:
+            peak = float(np.max(np.abs(y_vals)))
+            if peak > 1e-6:
+                y_vals = y_vals / peak
         center = h / 2.0
         half = (h - 4) / 2.0
         # 再生ヘッド位置（0.0〜1.0）

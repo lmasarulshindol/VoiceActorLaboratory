@@ -6,8 +6,8 @@ import typing
 from pathlib import Path
 import numpy as np
 import sounddevice as sd
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QAction, QShortcut, QKeySequence, QColor
+from PyQt6.QtCore import Qt, QTimer, QByteArray
+from PyQt6.QtGui import QAction, QShortcut, QKeySequence, QColor, QCloseEvent, QShowEvent
 from PyQt6.QtMultimedia import QMediaDevices, QAudioDevice
 from PyQt6.QtWidgets import (
     QMainWindow,
@@ -36,6 +36,9 @@ from PyQt6.QtWidgets import (
     QRadioButton,
     QCheckBox,
     QButtonGroup,
+    QFrame,
+    QGraphicsDropShadowEffect,
+    QSizePolicy,
 )
 
 from src.project import Project, TakeInfo
@@ -46,12 +49,15 @@ from src.script_format import suggest_take_basename
 import src.storage as storage
 from src.ui.settings import (
     get_theme,
-    set_theme,
     get_script_font_size,
     set_script_font_size,
     add_recent_project,
     get_export_use_friendly_names,
     set_export_use_friendly_names,
+    get_export_last_dir,
+    set_export_last_dir,
+    get_main_window_geometry,
+    set_main_window_geometry,
     get_input_device_id,
     set_input_device_id,
     get_output_device_id,
@@ -60,6 +66,33 @@ from src.ui.settings import (
 )
 from src.ui.waveform_widget import WaveformWidget
 from src.ui.settings_dialog import SettingsDialog
+from src.ui.theme_colors import (
+    CARD_BG_DARK,
+    CARD_BORDER_DARK,
+    TAKE_LIST_HIGHLIGHT_LIGHT,
+    TAKE_LIST_HIGHLIGHT_DARK,
+)
+from src.ui.theme_loader import apply_app_theme
+
+
+class ScriptEdit(QPlainTextEdit):
+    """台本エリア。.txt ファイルのドラッグ＆ドロップで台本を開く。"""
+    def __init__(self, parent: QWidget | None = None, on_file_dropped: typing.Callable[[str], None] | None = None):
+        super().__init__(parent)
+        self._on_file_dropped = on_file_dropped
+        self.setAcceptDrops(True)
+
+    def dragEnterEvent(self, e) -> None:
+        if e.mimeData().hasUrls():
+            e.acceptProposedAction()
+
+    def dropEvent(self, e) -> None:
+        urls = e.mimeData().urls()
+        if urls:
+            path = urls[0].toLocalFile()
+            if path.lower().endswith(".txt") and self._on_file_dropped:
+                self._on_file_dropped(path)
+        e.acceptProposedAction()
 
 
 class MainWindow(QMainWindow):
@@ -78,9 +111,21 @@ class MainWindow(QMainWindow):
         self._playing_take_id: str | None = None
         self._loaded_take_id: str | None = None
         self._playback_duration_seconds: float = 0.0
+        self._last_playback_was_playing: bool = False
+        self._theme_applied_on_show = False  # 初回表示時にテーマを再適用するため
         self._build_ui()
         self._setup_shortcuts()
+        geo = get_main_window_geometry()
+        if geo:
+            self.restoreGeometry(QByteArray(geo))
         self._update_ui_state()
+
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        # 初回表示時: プラットフォームの描画でツールバーコンボのスタイルが上書きされることがあるため再適用
+        if not self._theme_applied_on_show:
+            self._theme_applied_on_show = True
+            self._apply_theme(get_theme())
 
     def _build_ui(self) -> None:
         self.setWindowTitle("Voice Actor Laboratory")
@@ -145,6 +190,9 @@ class MainWindow(QMainWindow):
         act_howto.setToolTip("録音〜再生までの手順を表示")
         act_howto.triggered.connect(self._on_show_howto)
         help_menu.addAction(act_howto)
+        act_about = QAction("このアプリについて", self)
+        act_about.triggered.connect(self._on_show_about)
+        help_menu.addAction(act_about)
         view_menu = menubar.addMenu("表示")
         act_theme_light = QAction("テーマ: ライト", self)
         act_theme_light.triggered.connect(lambda: self._apply_theme("light"))
@@ -168,38 +216,113 @@ class MainWindow(QMainWindow):
         # 中央: はじめにパネル（プロジェクトなし） or 分割（台本 | テイク）
         self._stacked = QStackedWidget()
 
-        # はじめにパネル（初回・プロジェクト未作成時）
+        # はじめにパネル（カード化・隠れないよう最小サイズと余白を厳密に）
         welcome = QWidget()
+        welcome.setMinimumWidth(400)
         welcome_layout = QVBoxLayout(welcome)
-        welcome_layout.setSpacing(16)
+        welcome_layout.setSpacing(20)
+        welcome_layout.setContentsMargins(24, 24, 24, 24)
         welcome_title = QLabel("はじめに")
-        welcome_title.setStyleSheet("font-size: 18px; font-weight: bold;")
+        welcome_title.setObjectName("heading")
         welcome_layout.addWidget(welcome_title)
-        steps_text = (
-            "録音から再生まで、次の順番で進めます。\n\n"
-            "1. 「新規プロジェクトを作成」で保存先フォルダを選ぶ\n"
-            "2. 台本が表示されたら内容を確認（そのまま録音してOK）\n"
-            "3. 「録音開始」で録音 → 「録音停止」で1テイク追加\n"
-            "4. 右側のテイク一覧でダブルクリック → 再生"
-        )
-        steps_label = QLabel(steps_text)
-        steps_label.setWordWrap(True)
-        steps_label.setStyleSheet("color: #333; line-height: 1.6;")
-        welcome_layout.addWidget(steps_label)
+        # カード1: 新規プロジェクト
+        card1 = QFrame()
+        card1.setObjectName("welcomeCard")
+        card1.setFrameShape(QFrame.Shape.StyledPanel)
+        card1.setMinimumHeight(140)
+        card1_layout = QVBoxLayout(card1)
+        card1_layout.setContentsMargins(16, 14, 16, 14)
+        card1_layout.setSpacing(6)
+        card1_icon = QLabel("📁")
+        card1_icon.setStyleSheet("font-size: 22pt;")
+        card1_icon.setMinimumHeight(28)
+        card1_layout.addWidget(card1_icon)
+        card1_title = QLabel("新規プロジェクト作成")
+        card1_title.setObjectName("heading")
+        card1_title.setWordWrap(True)
+        card1_title.setMinimumWidth(200)
+        card1_title.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
+        card1_layout.addWidget(card1_title)
+        card1_body = QLabel("保存先フォルダを選択")
+        card1_body.setObjectName("body")
+        card1_body.setWordWrap(True)
+        card1_body.setMinimumWidth(200)
+        card1_body.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        card1_layout.addWidget(card1_body)
         btn_new_from_welcome = QPushButton("新規プロジェクトを作成")
+        btn_new_from_welcome.setObjectName("accentButton")
+        btn_new_from_welcome.setMinimumHeight(36)
         btn_new_from_welcome.setToolTip("保存先フォルダを選んでプロジェクトを作成します")
-        btn_new_from_welcome.setStyleSheet("padding: 10px 20px; font-size: 13px;")
         btn_new_from_welcome.clicked.connect(self._on_new_project)
-        welcome_layout.addWidget(btn_new_from_welcome, alignment=Qt.AlignmentFlag.AlignLeft)
-        # 最近開いたプロジェクト（クリックで開く）
-        welcome_recent_label = QLabel("最近開いたプロジェクト")
-        welcome_recent_label.setStyleSheet("font-weight: bold; margin-top: 12px;")
-        welcome_layout.addWidget(welcome_recent_label)
+        card1_layout.addWidget(btn_new_from_welcome, alignment=Qt.AlignmentFlag.AlignLeft)
+        welcome_layout.addWidget(card1)
+        # カード2: 録音
+        card2 = QFrame()
+        card2.setObjectName("welcomeCard")
+        card2.setFrameShape(QFrame.Shape.StyledPanel)
+        card2.setMinimumHeight(110)
+        card2_layout = QVBoxLayout(card2)
+        card2_layout.setContentsMargins(16, 14, 16, 14)
+        card2_layout.setSpacing(6)
+        card2_icon = QLabel("🎤")
+        card2_icon.setStyleSheet("font-size: 22pt;")
+        card2_icon.setMinimumHeight(28)
+        card2_layout.addWidget(card2_icon)
+        card2_title = QLabel("録音")
+        card2_title.setObjectName("heading")
+        card2_title.setWordWrap(True)
+        card2_title.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
+        card2_layout.addWidget(card2_title)
+        card2_body = QLabel("台本を確認して録音開始（F9）→ 停止（F10）で1テイク追加")
+        card2_body.setObjectName("body")
+        card2_body.setWordWrap(True)
+        card2_body.setMinimumWidth(200)
+        card2_body.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        card2_layout.addWidget(card2_body)
+        welcome_layout.addWidget(card2)
+        # カード3: 再生
+        card3 = QFrame()
+        card3.setObjectName("welcomeCard")
+        card3.setFrameShape(QFrame.Shape.StyledPanel)
+        card3.setMinimumHeight(110)
+        card3_layout = QVBoxLayout(card3)
+        card3_layout.setContentsMargins(16, 14, 16, 14)
+        card3_layout.setSpacing(6)
+        card3_icon = QLabel("▶")
+        card3_icon.setStyleSheet("font-size: 22pt;")
+        card3_icon.setMinimumHeight(28)
+        card3_layout.addWidget(card3_icon)
+        card3_title = QLabel("再生")
+        card3_title.setObjectName("heading")
+        card3_title.setWordWrap(True)
+        card3_title.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
+        card3_layout.addWidget(card3_title)
+        card3_body = QLabel("テイク一覧でダブルクリックで再生")
+        card3_body.setObjectName("body")
+        card3_body.setWordWrap(True)
+        card3_body.setMinimumWidth(200)
+        card3_body.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        card3_layout.addWidget(card3_body)
+        welcome_layout.addWidget(card3)
+        # カード4: 最近開いたプロジェクト
+        card4 = QFrame()
+        card4.setObjectName("welcomeCard")
+        card4.setFrameShape(QFrame.Shape.StyledPanel)
+        card4.setMinimumHeight(100)
+        card4_layout = QVBoxLayout(card4)
+        card4_layout.setContentsMargins(16, 14, 16, 14)
+        card4_layout.setSpacing(6)
+        card4_title = QLabel("最近開いたプロジェクト")
+        card4_title.setObjectName("heading")
+        card4_title.setWordWrap(True)
+        card4_title.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
+        card4_layout.addWidget(card4_title)
         self._welcome_recent_container = QWidget()
         self._welcome_recent_layout = QVBoxLayout(self._welcome_recent_container)
-        self._welcome_recent_layout.setContentsMargins(0, 4, 0, 0)
-        self._welcome_recent_layout.setSpacing(4)
-        welcome_layout.addWidget(self._welcome_recent_container)
+        self._welcome_recent_layout.setContentsMargins(0, 6, 0, 0)
+        self._welcome_recent_layout.setSpacing(6)
+        card4_layout.addWidget(self._welcome_recent_container)
+        welcome_layout.addWidget(card4)
         welcome_layout.addStretch()
         self._stacked.addWidget(welcome)
 
@@ -212,37 +335,31 @@ class MainWindow(QMainWindow):
         script_layout.setContentsMargins(0, 0, 0, 0)
         rec_controls = QHBoxLayout()
         self._record_toggle_btn = QPushButton("●")
+        self._record_toggle_btn.setObjectName("recordToggleBtn")
         self._record_toggle_btn.setFixedSize(44, 44)
-        self._record_toggle_btn.setStyleSheet(
-            "QPushButton { background-color: #c00; color: white; border: none; border-radius: 22px; font-size: 18px; }"
-            "QPushButton:hover:!pressed { background-color: #e00; }"
-            "QPushButton:disabled { background-color: #888; }"
-        )
         self._record_toggle_btn.setToolTip("録音開始 … 録音を開始（F9）")
         self._record_toggle_btn.clicked.connect(self._on_record_toggle)
         rec_controls.addWidget(self._record_toggle_btn)
         self._record_stop_btn = QPushButton("■")
+        self._record_stop_btn.setObjectName("recordStopBtn")
         self._record_stop_btn.setFixedSize(44, 44)
-        self._record_stop_btn.setStyleSheet(
-            "QPushButton { background-color: #333; color: white; border: none; border-radius: 4px; font-size: 16px; }"
-            "QPushButton:hover:!pressed { background-color: #555; }"
-            "QPushButton:disabled { background-color: #ccc; color: #666; }"
-        )
         self._record_stop_btn.setToolTip("録音停止 … 録音を止めてテイクとして保存（F10）")
         self._record_stop_btn.clicked.connect(self._on_record_stop)
         self._record_stop_btn.setEnabled(False)
         rec_controls.addWidget(self._record_stop_btn)
         self._recording_label = QLabel("")
-        self._recording_label.setStyleSheet("color: #666; min-width: 60px;")
+        self._recording_label.setObjectName("recordingLabel")
         rec_controls.addWidget(self._recording_label)
         rec_controls.addStretch()
         script_layout.addLayout(rec_controls)
         self._record_waveform = WaveformWidget()
         self._record_waveform.set_design_id(get_waveform_design())
         script_layout.addWidget(self._record_waveform)
-        script_layout.addWidget(QLabel("台本"))
-        self._script_edit = QPlainTextEdit()
-        self._script_edit.setPlaceholderText("台本を入力。メニュー［台本を新規作成］で例を挿入できます。")
+        script_label = QLabel("台本")
+        script_label.setObjectName("heading")
+        script_layout.addWidget(script_label)
+        self._script_edit = ScriptEdit(self, on_file_dropped=self._load_script_from_path)
+        self._script_edit.setPlaceholderText("台本を入力。メニュー［台本を新規作成］で例を挿入できます。.txt をドロップしても開けます。")
         self._script_edit.cursorPositionChanged.connect(self._highlight_current_line)
         script_layout.addWidget(self._script_edit)
         splitter.addWidget(script_widget)
@@ -253,17 +370,14 @@ class MainWindow(QMainWindow):
         take_layout.setContentsMargins(0, 0, 0, 0)
         play_controls = QHBoxLayout()
         self._play_pause_btn = QPushButton("▶")
+        self._play_pause_btn.setObjectName("playPauseBtn")
         self._play_pause_btn.setFixedSize(44, 44)
         self._play_pause_btn.setToolTip("再生 … 選択したテイクを再生")
         self._play_pause_btn.clicked.connect(self._on_play_pause_toggle)
         play_controls.addWidget(self._play_pause_btn)
         self._play_stop_btn = QPushButton("■")
+        self._play_stop_btn.setObjectName("playStopBtn")
         self._play_stop_btn.setFixedSize(44, 44)
-        self._play_stop_btn.setStyleSheet(
-            "QPushButton { background-color: #333; color: white; border: none; border-radius: 4px; font-size: 16px; }"
-            "QPushButton:hover:!pressed { background-color: #555; }"
-            "QPushButton:disabled { background-color: #ccc; color: #666; }"
-        )
         self._play_stop_btn.setToolTip("停止 … 再生を停止")
         self._play_stop_btn.clicked.connect(self._on_playback_stop)
         self._play_stop_btn.setEnabled(False)
@@ -286,9 +400,11 @@ class MainWindow(QMainWindow):
         self._playback_waveform.set_seekable(True)
         self._playback_waveform.seekRequested.connect(self._on_playback_seek_requested)
         take_layout.addWidget(self._playback_waveform)
-        take_layout.addWidget(QLabel("テイク一覧"))
+        take_label = QLabel("テイク一覧")
+        take_label.setObjectName("heading")
+        take_layout.addWidget(take_label)
         self._take_list_hint = QLabel("録音開始でテイクが追加されます")
-        self._take_list_hint.setStyleSheet("color: gray; font-size: 11px;")
+        self._take_list_hint.setObjectName("caption")
         take_layout.addWidget(self._take_list_hint)
         self._take_list = QListWidget()
         self._take_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
@@ -298,24 +414,75 @@ class MainWindow(QMainWindow):
         splitter.setSizes([500, 400])
 
         self._stacked.addWidget(splitter)
-        self.setCentralWidget(self._stacked)
+
+        # 2ペイン: サイドバー | メイン（_stacked）
+        self._sidebar = QWidget()
+        self._sidebar.setObjectName("sidebar")
+        self._sidebar.setFixedWidth(220)
+        sidebar_layout = QVBoxLayout(self._sidebar)
+        sidebar_layout.setContentsMargins(12, 16, 12, 16)
+        sidebar_layout.setSpacing(12)
+        sb_heading = QLabel("プロジェクト")
+        sb_heading.setObjectName("heading")
+        sidebar_layout.addWidget(sb_heading)
+        btn_new_sb = QPushButton("新規")
+        btn_new_sb.setToolTip("新規プロジェクトを作成")
+        btn_new_sb.clicked.connect(self._on_new_project)
+        sidebar_layout.addWidget(btn_new_sb)
+        btn_open_sb = QPushButton("開く")
+        btn_open_sb.setToolTip("プロジェクトフォルダを開く")
+        btn_open_sb.clicked.connect(self._on_open_project)
+        sidebar_layout.addWidget(btn_open_sb)
+        sb_recent_heading = QLabel("最近開いたプロジェクト")
+        sb_recent_heading.setObjectName("heading")
+        sidebar_layout.addWidget(sb_recent_heading)
+        self._sidebar_recent_container = QWidget()
+        self._sidebar_recent_layout = QVBoxLayout(self._sidebar_recent_container)
+        self._sidebar_recent_layout.setContentsMargins(0, 4, 0, 0)
+        self._sidebar_recent_layout.setSpacing(4)
+        sidebar_layout.addWidget(self._sidebar_recent_container)
+        sidebar_layout.addStretch()
+        sb_settings_heading = QLabel("設定")
+        sb_settings_heading.setObjectName("heading")
+        sidebar_layout.addWidget(sb_settings_heading)
+        btn_settings_sb = QPushButton("設定...")
+        btn_settings_sb.clicked.connect(self._on_show_settings)
+        sidebar_layout.addWidget(btn_settings_sb)
+        btn_theme_light_sb = QPushButton("テーマ: ライト")
+        btn_theme_light_sb.clicked.connect(lambda: self._apply_theme("light"))
+        sidebar_layout.addWidget(btn_theme_light_sb)
+        btn_theme_dark_sb = QPushButton("テーマ: ダーク")
+        btn_theme_dark_sb.clicked.connect(lambda: self._apply_theme("dark"))
+        sidebar_layout.addWidget(btn_theme_dark_sb)
+
+        root = QWidget()
+        root_layout = QHBoxLayout(root)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(0)
+        root_layout.addWidget(self._sidebar)
+        root_layout.addWidget(self._stacked, 1)
+        self.setCentralWidget(root)
         self._stacked.setCurrentIndex(0)  # 起動時は「はじめに」
 
         # コンテキストメニュー
         self._take_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._take_list.customContextMenuRequested.connect(self._on_take_context_menu)
 
-        # ステータスバー
+        # ステータスバー（左: メッセージ、右: ショートカット常時表示）
         self.statusBar().showMessage("新規プロジェクトまたはプロジェクトを開いてから、台本を入力・録音できます。")
+        self._shortcut_label = QLabel("F9 録音 | F10 停止 | Space 再生 | ←→ シーク")
+        self._shortcut_label.setObjectName("shortcutLabel")
+        self.statusBar().addPermanentWidget(self._shortcut_label)
 
-        self._apply_theme(get_theme())
-        self._apply_script_font_size(get_script_font_size())
         self._update_recent_menu()
         self._fill_input_devices()
         self._fill_output_devices()
         self._input_device_combo.currentIndexChanged.connect(self._on_input_device_changed)
         self._output_device_combo.currentIndexChanged.connect(self._on_output_device_changed)
         self._apply_device_selections()
+        # テーマはデバイス投入後に適用し、showEvent で初回表示時にも再適用（ツールバーコンボの色ずれ防止）
+        self._apply_theme(get_theme())
+        self._apply_script_font_size(get_script_font_size())
 
     def _fill_input_devices(self) -> None:
         """録音入力デバイス一覧をセレクトに反映する。"""
@@ -405,8 +572,33 @@ class MainWindow(QMainWindow):
             device = self._output_device_combo.itemData(idx)
             self._playback.set_output_device(device)
 
+    def closeEvent(self, event: QCloseEvent) -> None:
+        """終了時に未保存台本を確認し、ウィンドウ位置・サイズを保存する。"""
+        if self._project.has_project_dir() and self._script_edit.toPlainText() != self._project.script_text:
+            box = QMessageBox(self)
+            box.setWindowTitle("台本の保存")
+            box.setText("台本を保存していません。保存しますか？")
+            box.setStandardButtons(
+                QMessageBox.StandardButton.Save
+                | QMessageBox.StandardButton.Discard
+                | QMessageBox.StandardButton.Cancel
+            )
+            box.setDefaultButton(QMessageBox.StandardButton.Save)
+            box.setButtonText(QMessageBox.StandardButton.Save, "保存する")
+            box.setButtonText(QMessageBox.StandardButton.Discard, "破棄して終了")
+            box.setButtonText(QMessageBox.StandardButton.Cancel, "キャンセル")
+            ret = box.exec()
+            if ret == QMessageBox.StandardButton.Cancel:
+                event.ignore()
+                return
+            if ret == QMessageBox.StandardButton.Save:
+                storage.save_script(self._project.project_dir, self._script_edit.toPlainText())
+                self._project.script_text = self._script_edit.toPlainText()
+        set_main_window_geometry(bytes(self.saveGeometry()))
+        super().closeEvent(event)
+
     def _setup_shortcuts(self) -> None:
-        """録音 F9/Ctrl+R・停止 F10。再生 Space・左右シーク。"""
+        """録音 F9/Ctrl+R・停止 F10。再生 Space・左右シーク。テイク一覧でDelete削除・Enter再生。"""
         QShortcut(QKeySequence("F9"), self, self._on_record_toggle)
         QShortcut(QKeySequence("Ctrl+R"), self, self._on_record_toggle)
         QShortcut(QKeySequence("F10"), self, self._on_record_stop)
@@ -414,6 +606,9 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence(Qt.Key.Key_Space), self, self._on_play_pause_toggle)
         QShortcut(QKeySequence(Qt.Key.Key_Left), self, self._on_seek_backward)
         QShortcut(QKeySequence(Qt.Key.Key_Right), self, self._on_seek_forward)
+        QShortcut(QKeySequence(Qt.Key.Key_Delete), self._take_list, self._on_take_list_delete_key)
+        QShortcut(QKeySequence(Qt.Key.Key_Return), self._take_list, self._on_take_list_enter_play)
+        QShortcut(QKeySequence(Qt.Key.Key_Enter), self._take_list, self._on_take_list_enter_play)
 
     def _format_duration(self, seconds: float) -> str:
         m = int(seconds // 60)
@@ -454,12 +649,15 @@ class MainWindow(QMainWindow):
             self._recording_timer.stop()
             self._recording_label.setText("")
         # 再生トグル: 停止中＝▶、再生中＝‖、一時停止中＝▶
+        has_takes = len(self._project.takes) > 0
         if self._playback.is_playing:
             self._play_pause_btn.setText("‖")
             self._play_pause_btn.setToolTip("一時停止 … 再生を一時停止")
+            self._play_pause_btn.setEnabled(True)
         else:
             self._play_pause_btn.setText("▶")
             self._play_pause_btn.setToolTip("再生 … 選択したテイクを再生")
+            self._play_pause_btn.setEnabled(has_project and has_takes)
         self._play_stop_btn.setEnabled(self._playback.is_playing or self._playback.is_paused)
         self._refresh_take_list_highlight()
         sb = self.statusBar()
@@ -478,7 +676,9 @@ class MainWindow(QMainWindow):
         for i, t in enumerate(self._project.takes):
             fav = "★ " if t.favorite else ""
             adopted = "  [採用]" if t.adopted else ""
-            line = f"{fav}{t.display_name(i)}  {t.memo}{adopted}"
+            dur_sec = storage.get_wav_duration_seconds(self._project.project_dir, t.wav_filename)
+            dur_str = f"  {self._format_duration(dur_sec)}" if dur_sec > 0 else ""
+            line = f"{fav}{t.display_name(i)}{dur_str}  {t.memo}{adopted}"
             item = QListWidgetItem(line)
             item.setData(Qt.ItemDataRole.UserRole, t.id)
             self._take_list.addItem(item)
@@ -489,13 +689,15 @@ class MainWindow(QMainWindow):
         self._refresh_take_list_highlight()
 
     def _refresh_take_list_highlight(self) -> None:
-        """再生中のテイク行をハイライトする。"""
-        base = self._take_list.palette().base()
+        """再生中のテイク行をハイライトする。テーマに合わせた色で視認性を確保。"""
+        dark = get_theme() == "dark"
+        base = QColor(CARD_BG_DARK) if dark else self._take_list.palette().base()
+        highlight = QColor(TAKE_LIST_HIGHLIGHT_DARK) if dark else QColor(TAKE_LIST_HIGHLIGHT_LIGHT)
         for i in range(self._take_list.count()):
             item = self._take_list.item(i)
             take_id = item.data(Qt.ItemDataRole.UserRole)
             if take_id == self._playing_take_id:
-                item.setBackground(QColor(180, 200, 220))
+                item.setBackground(highlight)
             else:
                 item.setBackground(base)
     def _on_speed_changed(self, index: int) -> None:
@@ -504,16 +706,23 @@ class MainWindow(QMainWindow):
             self._playback.set_speed(rates[index])
 
     def _apply_theme(self, theme: str) -> None:
-        set_theme(theme)
-        if theme == "dark":
-            self._script_edit.setStyleSheet(
-                "QPlainTextEdit { background-color: #2d2d2d; color: #e0e0e0; }"
-            )
-        else:
-            self._script_edit.setStyleSheet("")
+        """QSS とパレットは theme_loader で一括適用。波形・テイクハイライト・カードの影のみここで行う。"""
+        apply_app_theme(theme)
         dark = theme == "dark"
         self._record_waveform.set_dark_theme(dark)
         self._playback_waveform.set_dark_theme(dark)
+        self._refresh_take_list_highlight()
+        for frame in self.findChildren(QFrame):
+            if frame.objectName() == "welcomeCard":
+                if dark:
+                    frame.setGraphicsEffect(None)
+                else:
+                    shadow = QGraphicsDropShadowEffect()
+                    shadow.setBlurRadius(12)
+                    shadow.setXOffset(0)
+                    shadow.setYOffset(2)
+                    shadow.setColor(QColor(0, 0, 0, 76))
+                    frame.setGraphicsEffect(shadow)
 
     def _apply_script_font_size(self, size: int) -> None:
         from PyQt6.QtGui import QFont
@@ -551,6 +760,25 @@ class MainWindow(QMainWindow):
         if not self._recent_menu.actions():
             self._recent_menu.addAction("（なし）").setEnabled(False)
         self._update_welcome_recent_list()
+        self._update_sidebar_recent_list()
+
+    def _update_sidebar_recent_list(self) -> None:
+        """サイドバーに表示する「最近開いたプロジェクト」を更新する。"""
+        from src.ui.settings import get_recent_projects
+        while self._sidebar_recent_layout.count():
+            item = self._sidebar_recent_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        for path in get_recent_projects():
+            if not path:
+                continue
+            name = Path(path).name or path
+            btn = QPushButton(name)
+            btn.setObjectName("recentProjectButton")
+            btn.setToolTip(path)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.clicked.connect(lambda checked=False, p=path: self._open_recent_project(p))
+            self._sidebar_recent_layout.addWidget(btn)
 
     def _update_welcome_recent_list(self) -> None:
         """はじめにパネルに表示する「最近開いたプロジェクト」を更新する。"""
@@ -565,11 +793,8 @@ class MainWindow(QMainWindow):
                 continue
             name = Path(path).name or path
             btn = QPushButton(name)
+            btn.setObjectName("recentProjectButton")
             btn.setToolTip(path)
-            btn.setStyleSheet(
-                "text-align: left; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px;"
-                "background: #f8f8f8; min-height: 20px;"
-            )
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda checked=False, p=path: self._open_recent_project(p))
             self._welcome_recent_layout.addWidget(btn)
@@ -593,6 +818,15 @@ class MainWindow(QMainWindow):
     def _switch_to_main_view(self) -> None:
         """プロジェクト作成/打開後、メイン（台本・テイク）画面に切り替える。"""
         self._stacked.setCurrentIndex(1)
+
+    def _on_show_about(self) -> None:
+        """ヘルプ「このアプリについて」ダイアログを表示する。"""
+        from src import __version__
+        QMessageBox.about(
+            self,
+            "このアプリについて",
+            f"Voice Actor Laboratory\nバージョン {__version__}\n\n声優向け 録音・再生・比較アプリです。",
+        )
 
     def _on_show_howto(self) -> None:
         """ヘルプ「使い方」ダイアログを表示する。"""
@@ -641,10 +875,8 @@ class MainWindow(QMainWindow):
         self._switch_to_main_view()
         self.statusBar().showMessage(path)
 
-    def _on_open_script(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(self, "台本を開く", "", "テキスト (*.txt);;すべて (*)")
-        if not path:
-            return
+    def _load_script_from_path(self, path: str) -> None:
+        """指定パスのテキストを台本として読み込む。ドロップ・メニュー「台本を開く」の共通処理。"""
         try:
             text = Path(path).read_text(encoding="utf-8")
         except Exception as e:
@@ -654,6 +886,13 @@ class MainWindow(QMainWindow):
         self._script_edit.setPlainText(text)
         if self._project.has_project_dir():
             storage.save_script(self._project.project_dir, text)
+        if self.statusBar():
+            self.statusBar().showMessage(f"台本を読み込みました: {path}")
+
+    def _on_open_script(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, "台本を開く", "", "テキスト (*.txt);;すべて (*)")
+        if path:
+            self._load_script_from_path(path)
 
     def _on_new_script(self) -> None:
         """台本エリアに入力例（テンプレート）を表示する。プロジェクト打開時は保存も行う。"""
@@ -688,9 +927,11 @@ class MainWindow(QMainWindow):
             if not self._recorder.is_recording:
                 self._recorder.start()
                 self._recording_timer.start(100)
+                self._on_recording_tick()
             elif self._recorder.is_paused:
                 self._recorder.resume()
                 self._recording_timer.start(100)
+                self._on_recording_tick()
             else:
                 self._recorder.pause()
             self._update_ui_state()
@@ -703,6 +944,7 @@ class MainWindow(QMainWindow):
         fd, tmp = tempfile.mkstemp(suffix=".wav")
         import os
         os.close(fd)
+        take_added = False
         try:
             if self._recorder.stop_and_save(tmp):
                 script_text = self._script_edit.toPlainText()
@@ -718,13 +960,17 @@ class MainWindow(QMainWindow):
                 )
                 self._project.add_take(take)
                 self._refresh_take_list()
+                take_added = True
         finally:
             Path(tmp).unlink(missing_ok=True)
         self._recording_timer.stop()
         self._record_waveform.set_samples(np.array([], dtype=np.float32))
         self._update_ui_state()
         if self.statusBar():
-            self.statusBar().showMessage(self._project.project_dir or "準備完了")
+            if take_added:
+                self.statusBar().showMessage("1テイクを追加しました")
+            else:
+                self.statusBar().showMessage(self._project.project_dir or "準備完了")
 
     def _on_take_double_clicked(self, item: QListWidgetItem) -> None:
         take_id = item.data(Qt.ItemDataRole.UserRole)
@@ -734,8 +980,8 @@ class MainWindow(QMainWindow):
         wav_path = storage.get_take_wav_path(self._project.project_dir, t.wav_filename)
         self._playing_take_id = take_id
         self._loaded_take_id = take_id
-        self._playback.play(wav_path)
         self._load_playback_waveform(wav_path)
+        self._playback.play(wav_path)
         self._playback_position_timer.start(80)
         self._update_ui_state()
 
@@ -828,7 +1074,13 @@ class MainWindow(QMainWindow):
         self._update_ui_state()
 
     def _on_playback_state_changed(self) -> None:
-        if not self._playback.is_playing and not self._playback.is_paused:
+        now_playing = self._playback.is_playing
+        now_stopped = not now_playing and not self._playback.is_paused
+        if self._last_playback_was_playing and now_stopped:
+            if self.statusBar():
+                self.statusBar().showMessage("再生が終わりました")
+        self._last_playback_was_playing = now_playing
+        if now_stopped:
             self._playback_position_timer.stop()
             self._playing_take_id = None
             self._playback_waveform.set_position_seconds(None)
@@ -836,10 +1088,9 @@ class MainWindow(QMainWindow):
 
     def _on_playback_position_tick(self) -> None:
         """再生位置を波形に反映し、時刻ラベルを更新。"""
-        pos_ms = self._playback.get_player().position()
+        pos_ms = max(0, self._playback.get_player().position())
         pos_sec = pos_ms / 1000.0
-        if self._playback.is_playing or self._playback.is_paused:
-            self._playback_waveform.set_position_seconds(pos_sec)
+        self._playback_waveform.set_position_seconds(pos_sec)
         if self._playback_duration_seconds > 0:
             total_str = self._format_duration(self._playback_duration_seconds)
             self._playback_time_label.setText(
@@ -919,6 +1170,7 @@ class MainWindow(QMainWindow):
         act_memo.triggered.connect(edit_memo)
         menu.addAction(act_memo)
         act_del = QAction("テイクを削除", self)
+        act_del.setShortcut(QKeySequence(Qt.Key.Key_Delete))
         def delete_take():
             if QMessageBox.question(
                 self, "確認", "このテイクを削除しますか？",
@@ -934,6 +1186,48 @@ class MainWindow(QMainWindow):
         act_del.triggered.connect(delete_take)
         menu.addAction(act_del)
         menu.exec(self._take_list.mapToGlobal(pos))
+
+    def _on_take_list_delete_key(self) -> None:
+        """テイク一覧にフォーカスがあるときにDeleteで選択テイクを削除。"""
+        if not self._project.has_project_dir() or not self._project.takes:
+            return
+        items = [self._take_list.item(i) for i in range(self._take_list.count()) if self._take_list.item(i).isSelected()]
+        if not items:
+            cur = self._take_list.currentItem()
+            if cur:
+                items = [cur]
+        if not items:
+            return
+        take_ids = [it.data(Qt.ItemDataRole.UserRole) for it in items if it and it.data(Qt.ItemDataRole.UserRole)]
+        if not take_ids:
+            return
+        n = len(take_ids)
+        msg = f"選択した{n}件のテイクを削除しますか？" if n > 1 else "このテイクを削除しますか？"
+        if QMessageBox.question(
+            self, "確認", msg,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        ) != QMessageBox.StandardButton.Yes:
+            return
+        ok_count = 0
+        for take_id in take_ids:
+            if storage.delete_take(self._project.project_dir, take_id):
+                ok_count += 1
+        if ok_count > 0:
+            self._project = storage.load_project(self._project.project_dir) or self._project
+            self._refresh_take_list()
+        if ok_count < n:
+            QMessageBox.warning(self, "エラー", f"{n - ok_count}件の削除に失敗しました。")
+
+    def _on_take_list_enter_play(self) -> None:
+        """テイク一覧でEnterを押したときに選択または現在のテイクを再生。"""
+        if not self._project.has_project_dir() or not self._project.takes:
+            return
+        item = self._take_list.currentItem()
+        if not item:
+            item = self._take_list.item(0)
+        if item:
+            self._on_take_double_clicked(item)
 
     def _on_export_takes(self) -> None:
         if not self._project.has_project_dir():
@@ -991,9 +1285,12 @@ class MainWindow(QMainWindow):
         else:
             take_ids = [t.id for t in self._project.takes]
         set_export_use_friendly_names(friendly.isChecked())
-        dest = QFileDialog.getExistingDirectory(self, "エクスポート先を選択")
+        dest = QFileDialog.getExistingDirectory(
+            self, "エクスポート先を選択", directory=get_export_last_dir() or ""
+        )
         if not dest:
             return
+        set_export_last_dir(dest)
         paths = storage.export_takes(
             self._project.project_dir,
             take_ids,

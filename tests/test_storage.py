@@ -95,3 +95,21 @@ class TestStorage:
             assert len(paths) == 1
             assert Path(paths[0]).name.startswith(Path(tmp).name)
             assert "Take1" in Path(paths[0]).name
+
+    def test_get_wav_duration_seconds_存在しないファイルは0(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "takes").mkdir()
+            dur = storage.get_wav_duration_seconds(tmp, "nonexistent.wav")
+            assert dur == 0.0
+
+    def test_get_wav_duration_seconds_有効なWAVで長さを返す(self) -> None:
+        import numpy as np
+        import soundfile as sf
+        with tempfile.TemporaryDirectory() as tmp:
+            takes_dir = Path(tmp) / "takes"
+            takes_dir.mkdir()
+            wav_path = takes_dir / "one_sec.wav"
+            # 1秒分の無音 (44100 Hz, mono)
+            sf.write(str(wav_path), np.zeros(44100, dtype=np.float32), 44100)
+            dur = storage.get_wav_duration_seconds(tmp, "one_sec.wav")
+            assert 0.99 <= dur <= 1.01
