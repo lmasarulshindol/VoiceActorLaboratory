@@ -33,6 +33,50 @@ def get_current_section(script_text: str, cursor_position: int) -> str:
     return section
 
 
+def get_current_line_text(script_text: str, cursor_position: int) -> str:
+    """
+    カーソル位置の行のテキストを取得する（見出しや空行を除く）。
+    VoiceActorStudioのロジックを参考に、セリフ部分のみを抽出。
+    """
+    lines = script_text.splitlines()
+    # カーソル位置がどの行にあるか特定
+    pos = 0
+    current_line = ""
+    line_no = 0
+    for i, line in enumerate(lines):
+        line_len = len(line)
+        if pos <= cursor_position <= pos + line_len:
+            current_line = line.strip()
+            line_no = i + 1
+            break
+        pos += line_len + 1  # +1 for newline
+
+    # 見出し行なら空を返す
+    if current_line.startswith("#"):
+        return ""
+    
+    # セリフ部分を抽出（「キャラ名: セリフ」形式からセリフ部分のみを取得）
+    if ":" in current_line:
+        parts = current_line.split(":", 1)
+        if len(parts) == 2:
+            return parts[1].strip()
+    
+    return current_line
+
+
+def get_current_line_number(script_text: str, cursor_position: int) -> int:
+    """
+    カーソル位置の行番号を取得する（1始まり）。
+    """
+    lines = script_text.splitlines()
+    pos = 0
+    for i, line in enumerate(lines):
+        if pos <= cursor_position <= pos + len(line):
+            return i + 1
+        pos += len(line) + 1
+    return len(lines)
+
+
 def sanitize_for_filename(name: str, max_length: int = 64) -> str:
     """
     ファイル名に使えない文字を除去し、安全な文字列にする。
@@ -56,13 +100,27 @@ def suggest_take_basename(
     script_text: str,
     cursor_position: int,
     existing_wav_filenames: list[str],
+    mode: str = "bulk",
 ) -> str:
     """
     台本とカーソル位置・既存テイクのファイル名から、今回のテイク用ベース名を提案する。
     返り値は拡張子なし（例: "朝の挨拶_01"）。既存がなければ "シーン名_01" または "take_01"。
     """
-    section = get_current_section(script_text, cursor_position)
-    prefix = sanitize_for_filename(section) if section else "take"
+    if mode == "individual":
+        line_text = get_current_line_text(script_text, cursor_position)
+        if line_text:
+            # VoiceActorStudioのロジックを参考: セリフの一部をファイル名に利用（最大20文字）
+            # ファイル名に使えない文字を除去し、空白もアンダースコアに変換
+            safe_text = re.sub(r'[\\/:*?"<>|]', '', line_text)
+            safe_text = safe_text.strip()[:20]
+            safe_text = re.sub(r'\s+', '_', safe_text)
+            prefix = sanitize_for_filename(safe_text, max_length=20) if safe_text else "line"
+        else:
+            prefix = "line"
+    else:
+        section = get_current_section(script_text, cursor_position)
+        prefix = sanitize_for_filename(section) if section else "take"
+
     # 既存の "prefix_NN.wav" または "prefix_NN_xxxx.wav" 形式をカウント
     pattern = re.compile(re.escape(prefix) + r"_(\d+)", re.IGNORECASE)
     max_n = 0

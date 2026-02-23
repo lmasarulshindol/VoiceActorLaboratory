@@ -96,6 +96,28 @@ def set_export_last_dir(path: str) -> None:
     get_settings().setValue("export_last_dir", path or "")
 
 
+def get_last_project_dialog_dir() -> str:
+    """前回「新規プロジェクト」「プロジェクトを開く」で選んだフォルダ。未設定は空文字。"""
+    v = get_settings().value("last_project_dialog_dir", "", type=str)
+    return v or ""
+
+
+def set_last_project_dialog_dir(path: str) -> None:
+    """「新規プロジェクト」「プロジェクトを開く」で選んだフォルダを記憶する。"""
+    get_settings().setValue("last_project_dialog_dir", path or "")
+
+
+def get_last_script_dialog_dir() -> str:
+    """前回「台本を開く」で選んだファイルの親フォルダ。未設定は空文字。"""
+    v = get_settings().value("last_script_dialog_dir", "", type=str)
+    return v or ""
+
+
+def set_last_script_dialog_dir(path: str) -> None:
+    """「台本を開く」で選んだファイルの親フォルダを記憶する。"""
+    get_settings().setValue("last_script_dialog_dir", path or "")
+
+
 def get_main_window_geometry() -> bytes | None:
     """メインウィンドウの geometry（位置・サイズ）。未設定は None。"""
     v = get_settings().value("main_window_geometry", None)
@@ -114,3 +136,21 @@ def set_main_window_geometry(data: bytes | None) -> None:
         get_settings().remove("main_window_geometry")
     else:
         get_settings().setValue("main_window_geometry", QByteArray(data))
+
+
+def get_recording_mode() -> str:
+    """bulk（台本一括） / individual（セリフ個別）"""
+    return get_settings().value("recording_mode", "bulk", type=str)
+
+
+def set_recording_mode(mode: str) -> None:
+    get_settings().setValue("recording_mode", mode)
+
+
+def get_auto_play_after_record() -> bool:
+    """録音終了後に自動再生するかどうか"""
+    return get_settings().value("auto_play_after_record", False, type=bool)
+
+
+def set_auto_play_after_record(value: bool) -> None:
+    get_settings().setValue("auto_play_after_record", value)

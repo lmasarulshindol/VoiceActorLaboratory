@@ -48,6 +48,17 @@ class Playback:
     def stop(self) -> None:
         """再生を停止する。"""
         self._player.stop()
+        # ファイルロックを確実に解除するため、ソースをクリア
+        self._player.setSource(QUrl())
+
+    def release_file_lock(self) -> None:
+        """
+        ファイルロックを確実に解除する。
+        ファイル削除前に呼ぶことで、QMediaPlayerがファイルを解放する。
+        """
+        self.stop()
+        # 念のため、ソースを再度クリア
+        self._player.setSource(QUrl())
 
     def set_speed(self, rate: float) -> None:
         """再生速度を設定する。0.5, 1.0, 1.25, 1.5 など。"""

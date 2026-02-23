@@ -127,8 +127,13 @@ class Recorder:
         data = np.concatenate(chunks, axis=0)
         path = Path(wav_path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        sf.write(wav_path, data, SAMPLE_RATE, subtype="PCM_16")
-        return True
+        # soundfile.write()は自動でファイルを閉じるが、念のため明示的に処理
+        try:
+            sf.write(wav_path, data, SAMPLE_RATE, subtype="PCM_16")
+            return True
+        except Exception as e:
+            # ファイル書き込みエラーをログに記録（必要に応じて）
+            return False
 
     def stop_and_save(self, wav_path: str) -> bool:
         """録音を停止し、バッファを指定パスに WAV 保存する。"""

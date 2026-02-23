@@ -167,6 +167,7 @@ def list_take_wav_paths(project_dir: str) -> list[tuple[str, str]]:
 
 def delete_take(project_dir: str, take_id: str) -> bool:
     """テイクをメタから削除し、WAV ファイルも削除する。"""
+    import time
     proj = load_project(project_dir)
     if proj is None:
         return False
@@ -175,7 +176,17 @@ def delete_take(project_dir: str, take_id: str) -> bool:
         return False
     wav_path = Path(get_take_wav_path(project_dir, t.wav_filename))
     if wav_path.exists():
-        wav_path.unlink()
+        # ファイルがロックされている場合に備えてリトライ
+        max_retries = 3
+        for i in range(max_retries):
+            try:
+                wav_path.unlink()
+                break
+            except PermissionError:
+                if i < max_retries - 1:
+                    time.sleep(0.1)  # 100ms待ってからリトライ
+                else:
+                    return False  # リトライしても削除できなかった
     proj.takes = [x for x in proj.takes if x.id != take_id]
     _save_meta(project_dir, proj)
     return True

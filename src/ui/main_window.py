@@ -45,7 +45,6 @@ from src.project import Project, TakeInfo
 from src.recorder import Recorder
 from src.playback import Playback
 from src.script_template import DEFAULT_SCRIPT_TEMPLATE
-from src.script_format import suggest_take_basename
 import src.storage as storage
 from src.ui.settings import (
     get_theme,
@@ -56,6 +55,10 @@ from src.ui.settings import (
     set_export_use_friendly_names,
     get_export_last_dir,
     set_export_last_dir,
+    get_last_project_dialog_dir,
+    set_last_project_dialog_dir,
+    get_last_script_dialog_dir,
+    set_last_script_dialog_dir,
     get_main_window_geometry,
     set_main_window_geometry,
     get_input_device_id,
@@ -63,6 +66,10 @@ from src.ui.settings import (
     get_output_device_id,
     set_output_device_id,
     get_waveform_design,
+    get_recording_mode,
+    set_recording_mode,
+    get_auto_play_after_record,
+    set_auto_play_after_record,
 )
 from src.ui.waveform_widget import WaveformWidget
 from src.ui.settings_dialog import SettingsDialog
@@ -73,6 +80,7 @@ from src.ui.theme_colors import (
     TAKE_LIST_HIGHLIGHT_DARK,
 )
 from src.ui.theme_loader import apply_app_theme
+from src.script_format import suggest_take_basename, get_current_line_text, get_current_line_number
 
 
 class ScriptEdit(QPlainTextEdit):
@@ -113,6 +121,14 @@ class MainWindow(QMainWindow):
         self._playback_duration_seconds: float = 0.0
         self._last_playback_was_playing: bool = False
         self._theme_applied_on_show = False  # 初回表示時にテーマを再適用するため
+        self._last_added_take_id: str | None = None  # 最後に追加されたテイクID
+        self._new_take_ids: set[str] = set()  # NEWバッジを表示するテイクIDのセット
+        self._new_take_timer = QTimer(self)  # NEWバッジの自動削除用タイマー
+        self._new_take_timer.setSingleShot(True)
+        self._new_take_timer.timeout.connect(self._clear_new_badges)
+        self._recording_blink_timer = QTimer(self)  # 録音ボタンの点滅用タイマー
+        self._recording_blink_state = False  # 録音ボタンの点滅状態
+        self._recording_blink_timer.timeout.connect(self._on_recording_blink_tick)
         self._build_ui()
         self._setup_shortcuts()
         geo = get_main_window_geometry()
@@ -326,80 +342,58 @@ class MainWindow(QMainWindow):
         welcome_layout.addStretch()
         self._stacked.addWidget(welcome)
 
-        # 二行目: 左＝録音制御＋台本、右＝再生制御＋テイク一覧
+        # 中央エリア: 台本とテイク一覧を左右分割
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        # 左: 録音制御エリア（赤丸⇔一時停止、四角停止）＋台本
+        # 左: 台本エリア
         script_widget = QWidget()
         script_layout = QVBoxLayout(script_widget)
         script_layout.setContentsMargins(0, 0, 0, 0)
-        rec_controls = QHBoxLayout()
-        self._record_toggle_btn = QPushButton("●")
-        self._record_toggle_btn.setObjectName("recordToggleBtn")
-        self._record_toggle_btn.setFixedSize(44, 44)
-        self._record_toggle_btn.setToolTip("録音開始 … 録音を開始（F9）")
-        self._record_toggle_btn.clicked.connect(self._on_record_toggle)
-        rec_controls.addWidget(self._record_toggle_btn)
-        self._record_stop_btn = QPushButton("■")
-        self._record_stop_btn.setObjectName("recordStopBtn")
-        self._record_stop_btn.setFixedSize(44, 44)
-        self._record_stop_btn.setToolTip("録音停止 … 録音を止めてテイクとして保存（F10）")
-        self._record_stop_btn.clicked.connect(self._on_record_stop)
-        self._record_stop_btn.setEnabled(False)
-        rec_controls.addWidget(self._record_stop_btn)
-        self._recording_label = QLabel("")
-        self._recording_label.setObjectName("recordingLabel")
-        rec_controls.addWidget(self._recording_label)
-        rec_controls.addStretch()
-        script_layout.addLayout(rec_controls)
-        self._record_waveform = WaveformWidget()
-        self._record_waveform.set_design_id(get_waveform_design())
-        script_layout.addWidget(self._record_waveform)
+        
         script_label = QLabel("台本")
         script_label.setObjectName("heading")
         script_layout.addWidget(script_label)
         self._script_edit = ScriptEdit(self, on_file_dropped=self._load_script_from_path)
         self._script_edit.setPlaceholderText("台本を入力。メニュー［台本を新規作成］で例を挿入できます。.txt をドロップしても開けます。")
         self._script_edit.cursorPositionChanged.connect(self._highlight_current_line)
+        self._script_edit.cursorPositionChanged.connect(self._update_current_line_preview)
         script_layout.addWidget(self._script_edit)
+        
+        # 個別モード時の現在行セリフプレビューエリア
+        self._current_line_preview_frame = QFrame()
+        self._current_line_preview_frame.setObjectName("currentLinePreview")
+        self._current_line_preview_frame.setFrameShape(QFrame.Shape.StyledPanel)
+        preview_layout = QVBoxLayout(self._current_line_preview_frame)
+        preview_layout.setContentsMargins(12, 8, 12, 8)
+        preview_layout.setSpacing(4)
+        preview_label = QLabel("現在のセリフ")
+        preview_label.setObjectName("heading")
+        preview_layout.addWidget(preview_label)
+        self._current_line_preview = QPlainTextEdit()
+        self._current_line_preview.setReadOnly(True)
+        self._current_line_preview.setPlaceholderText("カーソル位置のセリフがここに表示されます")
+        self._current_line_preview.setMaximumHeight(100)
+        self._current_line_preview.setStyleSheet("""
+            QPlainTextEdit {
+                background-color: rgba(255, 255, 200, 0.1);
+                border: 1px solid rgba(255, 255, 200, 0.3);
+                border-radius: 4px;
+                padding: 8px;
+                font-size: 16px;
+                font-weight: bold;
+            }
+        """)
+        preview_layout.addWidget(self._current_line_preview)
+        script_layout.addWidget(self._current_line_preview_frame)
+        self._current_line_preview_frame.setVisible(False)  # 初期状態は非表示
+        
         splitter.addWidget(script_widget)
 
-        # 右: 再生制御エリア（▶⇔一時停止、■停止）＋テイク一覧
+        # 右: テイク一覧エリア
         take_panel = QWidget()
         take_layout = QVBoxLayout(take_panel)
         take_layout.setContentsMargins(0, 0, 0, 0)
-        play_controls = QHBoxLayout()
-        self._play_pause_btn = QPushButton("▶")
-        self._play_pause_btn.setObjectName("playPauseBtn")
-        self._play_pause_btn.setFixedSize(44, 44)
-        self._play_pause_btn.setToolTip("再生 … 選択したテイクを再生")
-        self._play_pause_btn.clicked.connect(self._on_play_pause_toggle)
-        play_controls.addWidget(self._play_pause_btn)
-        self._play_stop_btn = QPushButton("■")
-        self._play_stop_btn.setObjectName("playStopBtn")
-        self._play_stop_btn.setFixedSize(44, 44)
-        self._play_stop_btn.setToolTip("停止 … 再生を停止")
-        self._play_stop_btn.clicked.connect(self._on_playback_stop)
-        self._play_stop_btn.setEnabled(False)
-        play_controls.addWidget(self._play_stop_btn)
-        play_controls.addWidget(QLabel(" 速度:"))
-        self._speed_combo = QComboBox()
-        self._speed_combo.addItems(["0.5x", "1.0x", "1.25x", "1.5x"])
-        self._speed_combo.setCurrentIndex(1)
-        self._speed_combo.setToolTip("再生速度 … 0.5x〜1.5x")
-        self._speed_combo.currentIndexChanged.connect(self._on_speed_changed)
-        play_controls.addWidget(self._speed_combo)
-        self._playback_time_label = QLabel("0:00 / 0:00")
-        self._playback_time_label.setToolTip("現在時刻 / 総時間")
-        self._playback_time_label.setMinimumWidth(100)
-        play_controls.addWidget(self._playback_time_label)
-        play_controls.addStretch()
-        take_layout.addLayout(play_controls)
-        self._playback_waveform = WaveformWidget()
-        self._playback_waveform.set_design_id(get_waveform_design())
-        self._playback_waveform.set_seekable(True)
-        self._playback_waveform.seekRequested.connect(self._on_playback_seek_requested)
-        take_layout.addWidget(self._playback_waveform)
+        
         take_label = QLabel("テイク一覧")
         take_label.setObjectName("heading")
         take_layout.addWidget(take_label)
@@ -413,7 +407,139 @@ class MainWindow(QMainWindow):
         splitter.addWidget(take_panel)
         splitter.setSizes([500, 400])
 
-        self._stacked.addWidget(splitter)
+        # 下部: 統合コントロールエリア（録音・再生ボタンを近接配置）
+        control_frame = QFrame()
+        control_frame.setObjectName("controlPanel")
+        control_frame.setFrameShape(QFrame.Shape.StyledPanel)
+        control_frame.setFixedHeight(180)
+        control_layout = QHBoxLayout(control_frame)
+        control_layout.setContentsMargins(16, 12, 16, 12)
+        control_layout.setSpacing(20)
+
+        # 左側: 録音コントロール
+        rec_group = QVBoxLayout()
+        rec_group.setSpacing(8)
+        rec_header = QHBoxLayout()
+        rec_header.addWidget(QLabel("録音"))
+        rec_header.addStretch()
+        rec_group.addLayout(rec_header)
+        
+        rec_controls_row = QHBoxLayout()
+        rec_controls_row.setSpacing(8)
+        self._record_mode_combo = QComboBox()
+        self._record_mode_combo.addItem("台本一括", "bulk")
+        self._record_mode_combo.addItem("セリフ個別", "individual")
+        self._record_mode_combo.setToolTip("録音モード切り替え\n一括: シーンごとに連番\n個別: カーソル行のセリフをメモとファイル名に反映")
+        saved_mode = get_recording_mode()
+        idx = self._record_mode_combo.findData(saved_mode)
+        if idx >= 0:
+            self._record_mode_combo.setCurrentIndex(idx)
+        self._record_mode_combo.currentIndexChanged.connect(self._on_recording_mode_changed)
+        rec_controls_row.addWidget(self._record_mode_combo)
+        rec_controls_row.addSpacing(8)
+        
+        self._record_toggle_btn = QPushButton("●")
+        self._record_toggle_btn.setObjectName("recordToggleBtn")
+        self._record_toggle_btn.setFixedSize(50, 50)
+        self._record_toggle_btn.setToolTip("録音開始 … 録音を開始（F9）")
+        self._record_toggle_btn.clicked.connect(self._on_record_toggle)
+        rec_controls_row.addWidget(self._record_toggle_btn)
+        
+        self._record_stop_btn = QPushButton("■")
+        self._record_stop_btn.setObjectName("recordStopBtn")
+        self._record_stop_btn.setFixedSize(50, 50)
+        self._record_stop_btn.setToolTip("録音停止 … 録音を止めてテイクとして保存（F10）")
+        self._record_stop_btn.clicked.connect(self._on_record_stop)
+        self._record_stop_btn.setEnabled(False)
+        rec_controls_row.addWidget(self._record_stop_btn)
+        
+        self._recording_label = QLabel("")
+        self._recording_label.setObjectName("recordingLabel")
+        self._recording_label.setMinimumWidth(80)
+        rec_controls_row.addWidget(self._recording_label)
+        
+        # クイックアクションボタン: 録音→再生
+        self._record_and_play_btn = QPushButton("録音→再生")
+        self._record_and_play_btn.setToolTip("録音停止後、自動的に再生を開始")
+        self._record_and_play_btn.setEnabled(False)
+        self._record_and_play_btn.clicked.connect(self._on_record_and_play)
+        rec_controls_row.addWidget(self._record_and_play_btn)
+        
+        rec_controls_row.addStretch()
+        rec_group.addLayout(rec_controls_row)
+        control_layout.addLayout(rec_group)
+
+        # 中央: 波形表示（録音・再生を切り替え表示）
+        waveform_group = QVBoxLayout()
+        waveform_group.setSpacing(4)
+        waveform_label = QLabel("波形")
+        waveform_label.setObjectName("heading")
+        waveform_group.addWidget(waveform_label)
+        
+        # 録音波形と再生波形を統合表示（StackedWidgetで切り替え）
+        self._waveform_stack = QStackedWidget()
+        self._record_waveform = WaveformWidget()
+        self._record_waveform.set_design_id(get_waveform_design())
+        self._playback_waveform = WaveformWidget()
+        self._playback_waveform.set_design_id(get_waveform_design())
+        self._playback_waveform.set_seekable(True)
+        self._playback_waveform.seekRequested.connect(self._on_playback_seek_requested)
+        self._waveform_stack.addWidget(self._record_waveform)
+        self._waveform_stack.addWidget(self._playback_waveform)
+        self._waveform_stack.setCurrentIndex(0)  # 初期は録音波形
+        waveform_group.addWidget(self._waveform_stack)
+        control_layout.addLayout(waveform_group, 2)  # 中央を広めに
+
+        # 右側: 再生コントロール
+        play_group = QVBoxLayout()
+        play_group.setSpacing(8)
+        play_header = QHBoxLayout()
+        play_header.addWidget(QLabel("再生"))
+        play_header.addStretch()
+        play_group.addLayout(play_header)
+        
+        play_controls_row = QHBoxLayout()
+        play_controls_row.setSpacing(8)
+        self._play_pause_btn = QPushButton("▶")
+        self._play_pause_btn.setObjectName("playPauseBtn")
+        self._play_pause_btn.setFixedSize(50, 50)
+        self._play_pause_btn.setToolTip("再生 … 選択したテイクを再生（Space）")
+        self._play_pause_btn.clicked.connect(self._on_play_pause_toggle)
+        play_controls_row.addWidget(self._play_pause_btn)
+        
+        self._play_stop_btn = QPushButton("■")
+        self._play_stop_btn.setObjectName("playStopBtn")
+        self._play_stop_btn.setFixedSize(50, 50)
+        self._play_stop_btn.setToolTip("停止 … 再生を停止")
+        self._play_stop_btn.clicked.connect(self._on_playback_stop)
+        self._play_stop_btn.setEnabled(False)
+        play_controls_row.addWidget(self._play_stop_btn)
+        
+        play_controls_row.addWidget(QLabel("速度:"))
+        self._speed_combo = QComboBox()
+        self._speed_combo.addItems(["0.5x", "1.0x", "1.25x", "1.5x"])
+        self._speed_combo.setCurrentIndex(1)
+        self._speed_combo.setToolTip("再生速度 … 0.5x〜1.5x")
+        self._speed_combo.currentIndexChanged.connect(self._on_speed_changed)
+        play_controls_row.addWidget(self._speed_combo)
+        
+        self._playback_time_label = QLabel("0:00 / 0:00")
+        self._playback_time_label.setToolTip("現在時刻 / 総時間")
+        self._playback_time_label.setMinimumWidth(100)
+        play_controls_row.addWidget(self._playback_time_label)
+        play_controls_row.addStretch()
+        play_group.addLayout(play_controls_row)
+        control_layout.addLayout(play_group)
+
+        # メインコンテナ: スプリッター + 統合コントロール
+        main_container = QWidget()
+        main_container_layout = QVBoxLayout(main_container)
+        main_container_layout.setContentsMargins(0, 0, 0, 0)
+        main_container_layout.setSpacing(0)
+        main_container_layout.addWidget(splitter, 1)
+        main_container_layout.addWidget(control_frame)
+
+        self._stacked.addWidget(main_container)
 
         # 2ペイン: サイドバー | メイン（_stacked）
         self._sidebar = QWidget()
@@ -468,8 +594,22 @@ class MainWindow(QMainWindow):
         self._take_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._take_list.customContextMenuRequested.connect(self._on_take_context_menu)
 
-        # ステータスバー（左: メッセージ、右: ショートカット常時表示）
+        # ステータスバー（左: メッセージ、右: 録音時間・再生時間・ショートカット常時表示）
         self.statusBar().showMessage("新規プロジェクトまたはプロジェクトを開いてから、台本を入力・録音できます。")
+        
+        # 録音時間表示
+        self._status_recording_time = QLabel("")
+        self._status_recording_time.setObjectName("statusRecordingTime")
+        self._status_recording_time.setMinimumWidth(80)
+        self.statusBar().addPermanentWidget(self._status_recording_time)
+        
+        # 再生時間表示
+        self._status_playback_time = QLabel("")
+        self._status_playback_time.setObjectName("statusPlaybackTime")
+        self._status_playback_time.setMinimumWidth(100)
+        self.statusBar().addPermanentWidget(self._status_playback_time)
+        
+        # ショートカット表示
         self._shortcut_label = QLabel("F9 録音 | F10 停止 | Space 再生 | ←→ シーク")
         self._shortcut_label.setObjectName("shortcutLabel")
         self.statusBar().addPermanentWidget(self._shortcut_label)
@@ -483,6 +623,15 @@ class MainWindow(QMainWindow):
         # テーマはデバイス投入後に適用し、showEvent で初回表示時にも再適用（ツールバーコンボの色ずれ防止）
         self._apply_theme(get_theme())
         self._apply_script_font_size(get_script_font_size())
+        
+        # 初期モードに応じてプレビューエリアの表示状態を設定
+        initial_mode = get_recording_mode()
+        self._current_line_preview_frame.setVisible(initial_mode == "individual")
+        if initial_mode == "individual":
+            self._update_current_line_preview()
+        
+        # 初期表示時に現在行をハイライト
+        QTimer.singleShot(100, self._highlight_current_line)
 
     def _fill_input_devices(self) -> None:
         """録音入力デバイス一覧をセレクトに反映する。"""
@@ -552,6 +701,20 @@ class MainWindow(QMainWindow):
         set_input_device_id(device_id)
         self._recorder.set_input_device(device_id)
 
+    def _on_recording_mode_changed(self, index: int) -> None:
+        mode = self._record_mode_combo.itemData(index)
+        set_recording_mode(mode)
+        
+        # 個別モード時は現在行プレビューを表示、一括モード時は非表示
+        is_individual = mode == "individual"
+        self._current_line_preview_frame.setVisible(is_individual)
+        if is_individual:
+            self._update_current_line_preview()
+        
+        if self.statusBar():
+            mode_name = self._record_mode_combo.currentText()
+            self.statusBar().showMessage(f"録音モードを「{mode_name}」に変更しました。", 3000)
+
     def _on_output_device_changed(self, index: int) -> None:
         device = self._output_device_combo.itemData(index)
         if device is not None:
@@ -598,17 +761,22 @@ class MainWindow(QMainWindow):
         super().closeEvent(event)
 
     def _setup_shortcuts(self) -> None:
-        """録音 F9/Ctrl+R・停止 F10。再生 Space・左右シーク。テイク一覧でDelete削除・Enter再生。"""
+        """録音 F9/Ctrl+R/R・停止 F10。再生 Space/P・左右シーク。テイク一覧でDelete削除・Enter再生。Ctrl+矢印でテイク移動。"""
         QShortcut(QKeySequence("F9"), self, self._on_record_toggle)
         QShortcut(QKeySequence("Ctrl+R"), self, self._on_record_toggle)
+        QShortcut(QKeySequence(Qt.Key.Key_R), self, self._on_record_toggle)  # Rキーで録音開始/停止
         QShortcut(QKeySequence("F10"), self, self._on_record_stop)
         QShortcut(QKeySequence("Ctrl+Shift+R"), self, self._on_record_stop)
         QShortcut(QKeySequence(Qt.Key.Key_Space), self, self._on_play_pause_toggle)
+        QShortcut(QKeySequence(Qt.Key.Key_P), self, self._on_play_pause_toggle)  # Pキーで再生/一時停止
         QShortcut(QKeySequence(Qt.Key.Key_Left), self, self._on_seek_backward)
         QShortcut(QKeySequence(Qt.Key.Key_Right), self, self._on_seek_forward)
         QShortcut(QKeySequence(Qt.Key.Key_Delete), self._take_list, self._on_take_list_delete_key)
         QShortcut(QKeySequence(Qt.Key.Key_Return), self._take_list, self._on_take_list_enter_play)
         QShortcut(QKeySequence(Qt.Key.Key_Enter), self._take_list, self._on_take_list_enter_play)
+        # Ctrl+矢印でテイク一覧の移動
+        QShortcut(QKeySequence("Ctrl+Right"), self, self._on_take_list_next)
+        QShortcut(QKeySequence("Ctrl+Left"), self, self._on_take_list_prev)
 
     def _format_duration(self, seconds: float) -> str:
         m = int(seconds // 60)
@@ -618,13 +786,20 @@ class MainWindow(QMainWindow):
     def _on_recording_tick(self) -> None:
         """録音中タイマー: 経過時間表示と波形更新。"""
         sec = self._recorder.get_buffer_duration_seconds()
-        self._recording_label.setText(self._format_duration(sec))
+        duration_str = self._format_duration(sec)
+        self._recording_label.setText(duration_str)
+        # ステータスバーにも録音時間を表示
+        if hasattr(self, '_status_recording_time'):
+            self._status_recording_time.setText(f"録音: {duration_str}")
         if self.statusBar():
-            self.statusBar().showMessage(f"録音中 {self._format_duration(sec)}")
+            self.statusBar().showMessage(f"録音中 {duration_str}")
         samples = self._recorder.get_visualization_samples(max_seconds=10.0)
         self._record_waveform.set_samples(samples)
         self._record_waveform.set_position_seconds(None)
         self._record_waveform.set_duration_seconds(0.0)
+        # 録音中は録音波形を表示
+        if hasattr(self, '_waveform_stack'):
+            self._waveform_stack.setCurrentIndex(0)
 
     def _update_ui_state(self) -> None:
         has_project = self._project.has_project_dir()
@@ -635,29 +810,63 @@ class MainWindow(QMainWindow):
         if not rec:
             self._record_toggle_btn.setText("●")
             self._record_toggle_btn.setToolTip("録音開始 … 録音を開始（F9）")
+            # 録音停止時は点滅を停止
+            self._recording_blink_timer.stop()
+            self._record_toggle_btn.setStyleSheet("")  # スタイルをリセット
         elif paused:
             self._record_toggle_btn.setText("●")
             self._record_toggle_btn.setToolTip("録音再開 … 一時停止から再開")
+            self._recording_blink_timer.stop()
+            self._record_toggle_btn.setStyleSheet("")  # スタイルをリセット
         else:
             self._record_toggle_btn.setText("‖")
             self._record_toggle_btn.setToolTip("一時停止 … 録音を一時停止")
+            # 録音中は点滅を開始
+            if not self._recording_blink_timer.isActive():
+                self._recording_blink_state = True
+                self._recording_blink_timer.start(500)  # 500ms間隔で点滅
+                self._on_recording_blink_tick()  # 即座に実行
         self._record_stop_btn.setEnabled(rec)
+        # 録音→再生ボタンの有効/無効を更新
+        if hasattr(self, '_record_and_play_btn'):
+            self._record_and_play_btn.setEnabled(rec)
         if rec:
             if not self._recording_timer.isActive():
                 self._recording_timer.start(100)
+            # 録音中は録音波形を表示
+            if hasattr(self, '_waveform_stack'):
+                self._waveform_stack.setCurrentIndex(0)
         else:
             self._recording_timer.stop()
             self._recording_label.setText("")
+            # 録音停止時はステータスバーの録音時間をクリア
+            if hasattr(self, '_status_recording_time'):
+                self._status_recording_time.setText("")
         # 再生トグル: 停止中＝▶、再生中＝‖、一時停止中＝▶
         has_takes = len(self._project.takes) > 0
         if self._playback.is_playing:
             self._play_pause_btn.setText("‖")
             self._play_pause_btn.setToolTip("一時停止 … 再生を一時停止")
             self._play_pause_btn.setEnabled(True)
+            # 再生中はハイライト表示
+            self._play_pause_btn.setStyleSheet("""
+                QPushButton#playPauseBtn {
+                    background-color: rgba(0, 150, 255, 0.3);
+                    border: 2px solid rgba(0, 150, 255, 0.8);
+                }
+            """)
+            # 再生中は再生波形を表示
+            if hasattr(self, '_waveform_stack'):
+                self._waveform_stack.setCurrentIndex(1)
         else:
             self._play_pause_btn.setText("▶")
             self._play_pause_btn.setToolTip("再生 … 選択したテイクを再生")
             self._play_pause_btn.setEnabled(has_project and has_takes)
+            # 再生停止時はハイライトを解除
+            self._play_pause_btn.setStyleSheet("")
+            # 再生停止時、録音中でなければ録音波形を表示
+            if hasattr(self, '_waveform_stack') and not rec:
+                self._waveform_stack.setCurrentIndex(0)
         self._play_stop_btn.setEnabled(self._playback.is_playing or self._playback.is_paused)
         self._refresh_take_list_highlight()
         sb = self.statusBar()
@@ -671,22 +880,62 @@ class MainWindow(QMainWindow):
             else:
                 sb.showMessage("新規プロジェクトまたはプロジェクトを開いてから、台本を入力・録音できます。")
 
+    def _on_recording_blink_tick(self) -> None:
+        """録音ボタンの点滅アニメーション。"""
+        if not self._recorder.is_recording or self._recorder.is_paused:
+            return
+        self._recording_blink_state = not self._recording_blink_state
+        if self._recording_blink_state:
+            # 点滅ON: 赤色のハイライト
+            self._record_toggle_btn.setStyleSheet("""
+                QPushButton#recordToggleBtn {
+                    background-color: rgba(255, 0, 0, 0.4);
+                    border: 2px solid rgba(255, 0, 0, 0.9);
+                }
+            """)
+        else:
+            # 点滅OFF: 通常表示
+            self._record_toggle_btn.setStyleSheet("""
+                QPushButton#recordToggleBtn {
+                    background-color: rgba(255, 0, 0, 0.2);
+                    border: 2px solid rgba(255, 0, 0, 0.6);
+                }
+            """)
+
     def _refresh_take_list(self) -> None:
         self._take_list.clear()
         for i, t in enumerate(self._project.takes):
             fav = "★ " if t.favorite else ""
+            new_badge = "🆕 " if t.id in self._new_take_ids else ""
             adopted = "  [採用]" if t.adopted else ""
             dur_sec = storage.get_wav_duration_seconds(self._project.project_dir, t.wav_filename)
             dur_str = f"  {self._format_duration(dur_sec)}" if dur_sec > 0 else ""
-            line = f"{fav}{t.display_name(i)}{dur_str}  {t.memo}{adopted}"
+            line = f"{new_badge}{fav}{t.display_name(i)}{dur_str}  {t.memo}{adopted}"
             item = QListWidgetItem(line)
             item.setData(Qt.ItemDataRole.UserRole, t.id)
+            # ツールチップに詳細情報を追加
+            tooltip_parts = []
+            if t.memo:
+                tooltip_parts.append(f"メモ: {t.memo}")
+            tooltip_parts.append(f"ファイル: {t.wav_filename}")
+            if dur_sec > 0:
+                tooltip_parts.append(f"長さ: {self._format_duration(dur_sec)}")
+            if t.favorite:
+                tooltip_parts.append("★ お気に入り")
+            if t.adopted:
+                tooltip_parts.append("✓ 採用済み")
+            item.setToolTip("\n".join(tooltip_parts))
             self._take_list.addItem(item)
         if self._project.takes:
             self._take_list_hint.setText("ダブルクリックで再生／右クリックでメモ・採用・削除")
         else:
             self._take_list_hint.setText("録音開始でテイクが追加されます")
         self._refresh_take_list_highlight()
+
+    def _clear_new_badges(self) -> None:
+        """NEWバッジをクリアしてテイク一覧を再描画。"""
+        self._new_take_ids.clear()
+        self._refresh_take_list()
 
     def _refresh_take_list_highlight(self) -> None:
         """再生中のテイク行をハイライトする。テーマに合わせた色で視認性を確保。"""
@@ -735,18 +984,102 @@ class MainWindow(QMainWindow):
         self._apply_script_font_size(value)
 
     def _highlight_current_line(self) -> None:
+        """
+        現在のカーソル行をハイライト表示する。テーマに応じた色を使用。
+        """
         try:
             from PyQt6.QtGui import QColor
             from PyQt6.QtWidgets import QPlainTextEdit
             cursor = self._script_edit.textCursor()
+            # 行の先頭に移動
             cursor.movePosition(cursor.MoveOperation.StartOfLine)
+            # 行の終わりまで選択
             cursor.movePosition(cursor.MoveOperation.EndOfLine, cursor.MoveMode.KeepAnchor)
+            
             extra = QPlainTextEdit.ExtraSelection()
             extra.cursor = cursor
-            extra.format.setBackground(QColor(255, 255, 200))
+            
+            # テーマに応じた色を設定
+            dark = get_theme() == "dark"
+            if dark:
+                # ダークテーマ: 明るい青系の背景、白いテキスト
+                extra.format.setBackground(QColor(30, 144, 255))  # ドジャーブルー
+                extra.format.setForeground(QColor(255, 255, 255))  # 白
+            else:
+                # ライトテーマ: 明るい青系の背景、濃いテキスト
+                extra.format.setBackground(QColor(173, 216, 230))  # ライトブルー
+                extra.format.setForeground(QColor(0, 0, 0))  # 黒
+            
+            # 太字にしてより目立たせる
+            extra.format.setFontWeight(600)
+            
+            # ハイライトを適用
             self._script_edit.setExtraSelections([extra])
-        except (TypeError, AttributeError):
-            self._script_edit.setExtraSelections([])
+        except Exception as e:
+            # エラー時はハイライトをクリア
+            try:
+                self._script_edit.setExtraSelections([])
+            except:
+                pass
+
+    def _update_current_line_preview(self) -> None:
+        """
+        個別モード時: 現在のカーソル行のセリフをプレビューエリアに表示する。
+        """
+        if get_recording_mode() != "individual":
+            return
+        
+        script_text = self._script_edit.toPlainText()
+        cursor_pos = self._script_edit.textCursor().position()
+        line_text = get_current_line_text(script_text, cursor_pos)
+        
+        if line_text:
+            self._current_line_preview.setPlainText(line_text)
+        else:
+            self._current_line_preview.setPlainText("")
+
+    def _move_to_next_line(self) -> None:
+        """
+        VoiceActorStudioのロジックを参考: 次の行へカーソルを移動する。
+        個別モード時の自動次行遷移に使用。
+        """
+        cursor = self._script_edit.textCursor()
+        script_text = self._script_edit.toPlainText()
+        current_pos = cursor.position()
+        current_line_no = get_current_line_number(script_text, current_pos)
+        lines = script_text.splitlines()
+        
+        # 次の行へ移動（見出し行はスキップ）
+        next_line_no = current_line_no
+        while next_line_no < len(lines):
+            next_line_no += 1
+            if next_line_no > len(lines):
+                break
+            line_text = lines[next_line_no - 1].strip()
+            # 見出し行でなければ移動
+            if line_text and not line_text.startswith("#"):
+                # 次の行の先頭に移動
+                pos = 0
+                for i in range(next_line_no - 1):
+                    pos += len(lines[i]) + 1
+                cursor.setPosition(pos)
+                self._script_edit.setTextCursor(cursor)
+                self._script_edit.ensureCursorVisible()
+                break
+
+    def _select_and_scroll_to_take(self, take_id: str) -> None:
+        """
+        指定されたテイクIDのテイクを選択してスクロール表示する。
+        録音終了後の自動選択に使用。
+        """
+        for i in range(self._take_list.count()):
+            item = self._take_list.item(i)
+            if item and item.data(Qt.ItemDataRole.UserRole) == take_id:
+                self._take_list.setCurrentRow(i)
+                self._take_list.scrollToItem(item, QAbstractItemView.ScrollHint.EnsureVisible)
+                # 一時的にハイライト表示（NEWバッジの代わり）
+                item.setSelected(True)
+                break
 
     def _update_recent_menu(self) -> None:
         from src.ui.settings import get_recent_projects
@@ -841,9 +1174,12 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, "使い方", text)
 
     def _on_new_project(self) -> None:
-        path = QFileDialog.getExistingDirectory(self, "新規プロジェクトの保存先を選択")
+        path = QFileDialog.getExistingDirectory(
+            self, "新規プロジェクトの保存先を選択", directory=get_last_project_dialog_dir() or ""
+        )
         if not path:
             return
+        set_last_project_dialog_dir(path)
         self._project = storage.create_project(path)
         self._reset_playback_ui()
         storage.save_script(path, DEFAULT_SCRIPT_TEMPLATE)
@@ -858,9 +1194,12 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, "プロジェクト", f"プロジェクトを作成しました。\n「録音開始」（F9）で録音できます。")
 
     def _on_open_project(self) -> None:
-        path = QFileDialog.getExistingDirectory(self, "プロジェクトフォルダを選択")
+        path = QFileDialog.getExistingDirectory(
+            self, "プロジェクトフォルダを選択", directory=get_last_project_dialog_dir() or ""
+        )
         if not path:
             return
+        set_last_project_dialog_dir(path)
         proj = storage.load_project(path)
         if proj is None:
             QMessageBox.warning(self, "エラー", "プロジェクトを読み込めませんでした。")
@@ -886,18 +1225,25 @@ class MainWindow(QMainWindow):
         self._script_edit.setPlainText(text)
         if self._project.has_project_dir():
             storage.save_script(self._project.project_dir, text)
+        # 台本読み込み後にハイライトを更新
+        QTimer.singleShot(100, self._highlight_current_line)
         if self.statusBar():
             self.statusBar().showMessage(f"台本を読み込みました: {path}")
 
     def _on_open_script(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(self, "台本を開く", "", "テキスト (*.txt);;すべて (*)")
+        path, _ = QFileDialog.getOpenFileName(
+            self, "台本を開く", get_last_script_dialog_dir() or "", "テキスト (*.txt);;すべて (*)"
+        )
         if path:
+            set_last_script_dialog_dir(str(Path(path).parent))
             self._load_script_from_path(path)
 
     def _on_new_script(self) -> None:
         """台本エリアに入力例（テンプレート）を表示する。プロジェクト打開時は保存も行う。"""
         self._script_edit.setPlainText(DEFAULT_SCRIPT_TEMPLATE)
         self._project.script_text = DEFAULT_SCRIPT_TEMPLATE
+        # 台本設定後にハイライトを更新
+        QTimer.singleShot(100, self._highlight_current_line)
         if self._project.has_project_dir():
             storage.save_script(self._project.project_dir, DEFAULT_SCRIPT_TEMPLATE)
             self.statusBar().showMessage("台本を入力例で置き換え、保存しました。")
@@ -950,27 +1296,74 @@ class MainWindow(QMainWindow):
                 script_text = self._script_edit.toPlainText()
                 cursor_pos = self._script_edit.textCursor().position()
                 existing = [t.wav_filename for t in self._project.takes]
-                preferred_basename = suggest_take_basename(script_text, cursor_pos, existing)
+                
+                mode = get_recording_mode()
+                preferred_basename = suggest_take_basename(script_text, cursor_pos, existing, mode=mode)
+                
+                memo = ""
+                if mode == "individual":
+                    line_text = get_current_line_text(script_text, cursor_pos)
+                    if line_text:
+                        memo = line_text
+
                 take = storage.add_take_from_file(
                     self._project.project_dir,
                     tmp,
-                    memo="",
+                    memo=memo,
                     favorite=False,
                     preferred_basename=preferred_basename,
                 )
                 self._project.add_take(take)
                 self._refresh_take_list()
                 take_added = True
+                self._last_added_take_id = take.id  # 追加されたテイクIDを保存
+                
+                # 録音終了時は台本のカーソル位置をそのまま維持（自動進めない）
         finally:
             Path(tmp).unlink(missing_ok=True)
         self._recording_timer.stop()
         self._record_waveform.set_samples(np.array([], dtype=np.float32))
         self._update_ui_state()
+        
+        # 録音終了後、追加されたテイクを自動選択・スクロール表示
+        if take_added and hasattr(self, '_last_added_take_id') and self._last_added_take_id:
+            # NEWバッジを追加（5秒間表示）
+            self._new_take_ids.add(self._last_added_take_id)
+            self._refresh_take_list()
+            # 5秒後にNEWバッジを自動削除
+            self._new_take_timer.stop()
+            self._new_take_timer.start(5000)
+            QTimer.singleShot(50, lambda: self._select_and_scroll_to_take(self._last_added_take_id))
+            
+            # 自動再生オプションが有効な場合、録音終了後に自動再生
+            if get_auto_play_after_record():
+                QTimer.singleShot(200, self._auto_play_last_take)
+        
         if self.statusBar():
             if take_added:
                 self.statusBar().showMessage("1テイクを追加しました")
             else:
                 self.statusBar().showMessage(self._project.project_dir or "準備完了")
+
+    def _auto_play_last_take(self) -> None:
+        """最後に追加されたテイクを自動再生する。"""
+        if self._last_added_take_id:
+            for i in range(self._take_list.count()):
+                item = self._take_list.item(i)
+                if item and item.data(Qt.ItemDataRole.UserRole) == self._last_added_take_id:
+                    self._on_take_double_clicked(item)
+                    break
+
+    def _on_record_and_play(self) -> None:
+        """録音→再生ボタン: 録音停止後、自動的に再生を開始。"""
+        if not self._recorder.is_recording:
+            return
+        # 録音停止を実行し、自動再生フラグを一時的に有効化
+        was_auto_play = get_auto_play_after_record()
+        set_auto_play_after_record(True)
+        self._on_record_stop()
+        # 元の設定に戻す
+        set_auto_play_after_record(was_auto_play)
 
     def _on_take_double_clicked(self, item: QListWidgetItem) -> None:
         take_id = item.data(Qt.ItemDataRole.UserRole)
@@ -983,6 +1376,9 @@ class MainWindow(QMainWindow):
         self._load_playback_waveform(wav_path)
         self._playback.play(wav_path)
         self._playback_position_timer.start(80)
+        # 再生開始時に再生波形を表示
+        if hasattr(self, '_waveform_stack'):
+            self._waveform_stack.setCurrentIndex(1)
         self._update_ui_state()
 
     def _on_play_pause_toggle(self) -> None:
@@ -1048,6 +1444,20 @@ class MainWindow(QMainWindow):
             self._playback.get_player().play()
         self._update_ui_state()
 
+    def _on_take_list_next(self) -> None:
+        """Ctrl+→: テイク一覧で次のテイクに移動。"""
+        current_row = self._take_list.currentRow()
+        if current_row < self._take_list.count() - 1:
+            self._take_list.setCurrentRow(current_row + 1)
+            self._take_list.scrollToItem(self._take_list.item(current_row + 1))
+
+    def _on_take_list_prev(self) -> None:
+        """Ctrl+←: テイク一覧で前のテイクに移動。"""
+        current_row = self._take_list.currentRow()
+        if current_row > 0:
+            self._take_list.setCurrentRow(current_row - 1)
+            self._take_list.scrollToItem(self._take_list.item(current_row - 1))
+
     def _reset_playback_ui(self) -> None:
         """再生まわりを未ロード状態に戻す。プロジェクト打開時などに呼ぶ。"""
         self._playback.stop()
@@ -1068,9 +1478,15 @@ class MainWindow(QMainWindow):
         self._playing_take_id = None
         self._playback_waveform.set_position_seconds(None)
         if self._playback_duration_seconds > 0:
-            self._playback_time_label.setText(
-                f"0:00 / {self._format_duration(self._playback_duration_seconds)}"
-            )
+            total_str = self._format_duration(self._playback_duration_seconds)
+            self._playback_time_label.setText(f"0:00 / {total_str}")
+            # ステータスバーの再生時間を更新
+            if hasattr(self, '_status_playback_time'):
+                self._status_playback_time.setText(f"再生: 0:00 / {total_str}")
+        else:
+            # 再生時間がない場合はクリア
+            if hasattr(self, '_status_playback_time'):
+                self._status_playback_time.setText("")
         self._update_ui_state()
 
     def _on_playback_state_changed(self) -> None:
@@ -1093,11 +1509,16 @@ class MainWindow(QMainWindow):
         self._playback_waveform.set_position_seconds(pos_sec)
         if self._playback_duration_seconds > 0:
             total_str = self._format_duration(self._playback_duration_seconds)
-            self._playback_time_label.setText(
-                f"{self._format_duration(pos_sec)} / {total_str}"
-            )
+            pos_str = self._format_duration(pos_sec)
+            self._playback_time_label.setText(f"{pos_str} / {total_str}")
+            # ステータスバーにも再生時間を表示
+            if hasattr(self, '_status_playback_time'):
+                self._status_playback_time.setText(f"再生: {pos_str} / {total_str}")
         else:
             self._playback_time_label.setText("0:00 / 0:00")
+            # 再生時間がない場合はクリア
+            if hasattr(self, '_status_playback_time'):
+                self._status_playback_time.setText("")
 
     def _load_playback_waveform(self, wav_path: str) -> None:
         """WAV を読み込み再生用波形にセット。"""
@@ -1178,14 +1599,76 @@ class MainWindow(QMainWindow):
                 QMessageBox.StandardButton.No,
             ) != QMessageBox.StandardButton.Yes:
                 return
-            if storage.delete_take(self._project.project_dir, take_id):
-                self._project = storage.load_project(self._project.project_dir) or self._project
-                self._refresh_take_list()
+            # 削除前に再生中のファイルなら停止してロック解除
+            if self._playing_take_id == take_id or self._loaded_take_id == take_id:
+                self._playback.release_file_lock()
+                self._playback_position_timer.stop()
+                self._playing_take_id = None
+                self._loaded_take_id = None
+                self._update_ui_state()
+                # ファイルロックが解放されるまで少し待ってから削除
+                QTimer.singleShot(100, lambda: self._delete_take_after_unlock(take_id))
             else:
-                QMessageBox.warning(self, "エラー", "削除に失敗しました。")
+                # 再生中でない場合は即座に削除
+                if storage.delete_take(self._project.project_dir, take_id):
+                    self._project = storage.load_project(self._project.project_dir) or self._project
+                    self._refresh_take_list()
+                else:
+                    QMessageBox.warning(self, "エラー", "削除に失敗しました。ファイルが使用中かもしれません。")
         act_del.triggered.connect(delete_take)
         menu.addAction(act_del)
+        
+        # このテイクを再生
+        act_play = QAction("このテイクを再生", self)
+        act_play.setShortcut(QKeySequence(Qt.Key.Key_Return))
+        act_play.triggered.connect(lambda: self._on_take_double_clicked(item))
+        menu.addAction(act_play)
+        
+        # このテイクをリテイク（削除して再録音）
+        act_retake = QAction("このテイクをリテイク", self)
+        def retake_take():
+            if QMessageBox.question(
+                self, "確認", "このテイクを削除して再録音しますか？",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            ) != QMessageBox.StandardButton.Yes:
+                return
+            # 削除処理
+            if self._playing_take_id == take_id or self._loaded_take_id == take_id:
+                self._playback.release_file_lock()
+                self._playback_position_timer.stop()
+                self._playing_take_id = None
+                self._loaded_take_id = None
+                self._update_ui_state()
+                QTimer.singleShot(100, lambda: self._delete_take_and_start_recording(take_id))
+            else:
+                if storage.delete_take(self._project.project_dir, take_id):
+                    self._project = storage.load_project(self._project.project_dir) or self._project
+                    self._refresh_take_list()
+                    # 録音開始
+                    if not self._recorder.is_recording:
+                        self._on_record_toggle()
+        act_retake.triggered.connect(retake_take)
+        menu.addAction(act_retake)
+        
         menu.exec(self._take_list.mapToGlobal(pos))
+
+    def _delete_take_and_start_recording(self, take_id: str) -> None:
+        """テイクを削除して録音を開始する。"""
+        if storage.delete_take(self._project.project_dir, take_id):
+            self._project = storage.load_project(self._project.project_dir) or self._project
+            self._refresh_take_list()
+            # 録音開始
+            if not self._recorder.is_recording:
+                self._on_record_toggle()
+
+    def _delete_take_after_unlock(self, take_id: str) -> None:
+        """ファイルロック解除後にテイクを削除する。"""
+        if storage.delete_take(self._project.project_dir, take_id):
+            self._project = storage.load_project(self._project.project_dir) or self._project
+            self._refresh_take_list()
+        else:
+            QMessageBox.warning(self, "エラー", "削除に失敗しました。ファイルが使用中かもしれません。")
 
     def _on_take_list_delete_key(self) -> None:
         """テイク一覧にフォーカスがあるときにDeleteで選択テイクを削除。"""
@@ -1209,6 +1692,27 @@ class MainWindow(QMainWindow):
             QMessageBox.StandardButton.No,
         ) != QMessageBox.StandardButton.Yes:
             return
+        # 削除前に再生中のファイルなら停止してロック解除
+        needs_unlock = False
+        for take_id in take_ids:
+            if self._playing_take_id == take_id or self._loaded_take_id == take_id:
+                self._playback.release_file_lock()
+                self._playback_position_timer.stop()
+                self._playing_take_id = None
+                self._loaded_take_id = None
+                self._update_ui_state()
+                needs_unlock = True
+                break
+        
+        if needs_unlock:
+            # ファイルロックが解放されるまで少し待ってから削除
+            QTimer.singleShot(100, lambda: self._delete_takes_after_unlock(take_ids, n))
+        else:
+            # 再生中でない場合は即座に削除
+            self._delete_takes_after_unlock(take_ids, n)
+
+    def _delete_takes_after_unlock(self, take_ids: list[str], total_count: int) -> None:
+        """ファイルロック解除後にテイクを削除する。"""
         ok_count = 0
         for take_id in take_ids:
             if storage.delete_take(self._project.project_dir, take_id):
@@ -1216,8 +1720,8 @@ class MainWindow(QMainWindow):
         if ok_count > 0:
             self._project = storage.load_project(self._project.project_dir) or self._project
             self._refresh_take_list()
-        if ok_count < n:
-            QMessageBox.warning(self, "エラー", f"{n - ok_count}件の削除に失敗しました。")
+        if ok_count < total_count:
+            QMessageBox.warning(self, "エラー", f"{total_count - ok_count}件の削除に失敗しました。ファイルが使用中かもしれません。")
 
     def _on_take_list_enter_play(self) -> None:
         """テイク一覧でEnterを押したときに選択または現在のテイクを再生。"""

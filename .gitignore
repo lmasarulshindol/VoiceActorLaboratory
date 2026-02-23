@@ -8,3 +8,12 @@ __pycache__/
 project_meta.json
 script.txt
 takes/
+
+# 音声ファイルは対象外
+*.wav
+*.mp3
+*.m4a
+*.ogg
+*.flac
+*.aiff
+*.aif
