@@ -2,7 +2,7 @@
 台本の構成と、録音ファイル名の導出ルール。
 
 台本フォーマット:
-- 行頭が "# " または "## " の行は見出し（シーン・カット名）。ファイル名のベースに利用する。
+- 行頭が "# " / "## " / "### " の行は見出し（シーン・カット名）。ファイル名のベースに利用する。
 - 見出しは「# シーン名」の形式。カーソル位置より前の直近の見出しが現在のシーンとなる。
 - 同一シーン内のテイクは "シーン名_01.wav", "シーン名_02.wav" のように連番になる。
 """
@@ -13,7 +13,7 @@ import unicodedata
 def get_current_section(script_text: str, cursor_position: int) -> str:
     """
     カーソル位置に対応する「現在のシーン名」を取得する。
-    カーソルを含む行まで含めた範囲で、直近の行頭 "# " または "## " の見出しを返す。
+    カーソルを含む行まで含めた範囲で、直近の行頭 "# " / "## " / "### " の見出しを返す。
     見出しがない場合は空文字列。
     """
     before = script_text[:cursor_position]
@@ -24,6 +24,9 @@ def get_current_section(script_text: str, cursor_position: int) -> str:
     section = ""
     for line in reversed(lines):
         s = line.strip()
+        if s.startswith("### "):
+            section = s[4:].strip()
+            break
         if s.startswith("## "):
             section = s[3:].strip()
             break

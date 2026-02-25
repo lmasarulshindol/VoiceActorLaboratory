@@ -73,6 +73,8 @@ from src.ui.settings import (
 )
 from src.ui.waveform_widget import WaveformWidget
 from src.ui.settings_dialog import SettingsDialog
+from src.ui.find_replace_dialog import FindReplaceDialog
+from src.ui.script_edit_with_line_numbers import ScriptEditWithLineNumbers
 from src.ui.theme_colors import (
     CARD_BG_DARK,
     CARD_BORDER_DARK,
@@ -80,7 +82,7 @@ from src.ui.theme_colors import (
     TAKE_LIST_HIGHLIGHT_DARK,
 )
 from src.ui.theme_loader import apply_app_theme
-from src.script_format import suggest_take_basename, get_current_line_text, get_current_line_number
+from src.script_format import suggest_take_basename, get_current_line_text, get_current_line_number, get_current_section
 
 
 class ScriptEdit(QPlainTextEdit):
@@ -201,6 +203,17 @@ class MainWindow(QMainWindow):
         file_menu.addAction(act_save_script)
         file_menu.addAction(act_export)
         self._recent_menu = file_menu.addMenu("最近開いたプロジェクト")
+        edit_menu = menubar.addMenu("編集")
+        act_find = QAction("検索...", self)
+        act_find.setShortcut(QKeySequence("Ctrl+F"))
+        act_find.setToolTip("台本内を検索（Ctrl+F）")
+        act_find.triggered.connect(self._on_find)
+        edit_menu.addAction(act_find)
+        act_replace = QAction("置換...", self)
+        act_replace.setShortcut(QKeySequence("Ctrl+H"))
+        act_replace.setToolTip("台本内を検索して置換（Ctrl+H）")
+        act_replace.triggered.connect(self._on_replace_dialog)
+        edit_menu.addAction(act_replace)
         help_menu = menubar.addMenu("ヘルプ")
         act_howto = QAction("使い方", self)
         act_howto.setToolTip("録音〜再生までの手順を表示")
@@ -353,11 +366,14 @@ class MainWindow(QMainWindow):
         script_label = QLabel("台本")
         script_label.setObjectName("heading")
         script_layout.addWidget(script_label)
-        self._script_edit = ScriptEdit(self, on_file_dropped=self._load_script_from_path)
+        script_edit_factory = lambda p: ScriptEdit(p, on_file_dropped=self._load_script_from_path)
+        self._script_container = ScriptEditWithLineNumbers(self, script_edit_factory=script_edit_factory)
+        self._script_edit = self._script_container.script_edit()
         self._script_edit.setPlaceholderText("台本を入力。メニュー［台本を新規作成］で例を挿入できます。.txt をドロップしても開けます。")
         self._script_edit.cursorPositionChanged.connect(self._highlight_current_line)
         self._script_edit.cursorPositionChanged.connect(self._update_current_line_preview)
-        script_layout.addWidget(self._script_edit)
+        self._script_edit.cursorPositionChanged.connect(self._update_status_script_position)
+        script_layout.addWidget(self._script_container)
         
         # 個別モード時の現在行セリフプレビューエリア
         self._current_line_preview_frame = QFrame()
@@ -630,8 +646,8 @@ class MainWindow(QMainWindow):
         if initial_mode == "individual":
             self._update_current_line_preview()
         
-        # 初期表示時に現在行をハイライト
-        QTimer.singleShot(100, self._highlight_current_line)
+        # 初期表示時に現在行をハイライト・ステータス行/シーンを更新
+        QTimer.singleShot(100, lambda: (self._highlight_current_line(), self._update_status_script_position()))
 
     def _fill_input_devices(self) -> None:
         """録音入力デバイス一覧をセレクトに反映する。"""
@@ -777,6 +793,7 @@ class MainWindow(QMainWindow):
         # Ctrl+矢印でテイク一覧の移動
         QShortcut(QKeySequence("Ctrl+Right"), self, self._on_take_list_next)
         QShortcut(QKeySequence("Ctrl+Left"), self, self._on_take_list_prev)
+        # 検索・置換はメニュー経由で _on_find / _on_replace_dialog が呼ばれる（Ctrl+F / Ctrl+H）
 
     def _format_duration(self, seconds: float) -> str:
         m = int(seconds // 60)
@@ -978,6 +995,7 @@ class MainWindow(QMainWindow):
         f = self._script_edit.font()
         f.setPointSize(size)
         self._script_edit.setFont(f)
+        self._script_container.line_number_area().setFont(f)
 
     def _on_script_font_size_changed(self, value: int) -> None:
         set_script_font_size(value)
@@ -1021,6 +1039,16 @@ class MainWindow(QMainWindow):
                 self._script_edit.setExtraSelections([])
             except:
                 pass
+
+    def _update_status_script_position(self) -> None:
+        """ステータスバーに現在行とシーンを表示する。"""
+        script_text = self._script_edit.toPlainText()
+        cursor_pos = self._script_edit.textCursor().position()
+        line_no = get_current_line_number(script_text, cursor_pos)
+        section = get_current_section(script_text, cursor_pos)
+        line_str = str(line_no) if line_no else "—"
+        section_str = section if section else "—"
+        self._status_script_position.setText(f"行 {line_str} | シーン: {section_str}")
 
     def _update_current_line_preview(self) -> None:
         """
@@ -1215,9 +1243,9 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(path)
 
     def _load_script_from_path(self, path: str) -> None:
-        """指定パスのテキストを台本として読み込む。ドロップ・メニュー「台本を開く」の共通処理。"""
+        """指定パスのテキストを台本として読み込む。ドロップ・メニュー「台本を開く」の共通処理。UTF-8/CP932等にフォールバック。"""
         try:
-            text = Path(path).read_text(encoding="utf-8")
+            text = storage.decode_script_bytes(Path(path).read_bytes())
         except Exception as e:
             QMessageBox.warning(self, "エラー", f"台本を読み込めませんでした: {e}")
             return
@@ -1225,8 +1253,8 @@ class MainWindow(QMainWindow):
         self._script_edit.setPlainText(text)
         if self._project.has_project_dir():
             storage.save_script(self._project.project_dir, text)
-        # 台本読み込み後にハイライトを更新
-        QTimer.singleShot(100, self._highlight_current_line)
+        # 台本読み込み後にハイライト・ステータスを更新
+        QTimer.singleShot(100, lambda: (self._highlight_current_line(), self._update_status_script_position()))
         if self.statusBar():
             self.statusBar().showMessage(f"台本を読み込みました: {path}")
 
@@ -1242,13 +1270,23 @@ class MainWindow(QMainWindow):
         """台本エリアに入力例（テンプレート）を表示する。プロジェクト打開時は保存も行う。"""
         self._script_edit.setPlainText(DEFAULT_SCRIPT_TEMPLATE)
         self._project.script_text = DEFAULT_SCRIPT_TEMPLATE
-        # 台本設定後にハイライトを更新
-        QTimer.singleShot(100, self._highlight_current_line)
+        # 台本設定後にハイライト・ステータスを更新
+        QTimer.singleShot(100, lambda: (self._highlight_current_line(), self._update_status_script_position()))
         if self._project.has_project_dir():
             storage.save_script(self._project.project_dir, DEFAULT_SCRIPT_TEMPLATE)
             self.statusBar().showMessage("台本を入力例で置き換え、保存しました。")
         else:
             self.statusBar().showMessage("入力例を表示しました。プロジェクトを開いた状態で「台本を保存」で保存できます。")
+
+    def _on_find(self) -> None:
+        """検索ダイアログを表示する（Ctrl+F）。"""
+        d = FindReplaceDialog(self, self._script_edit, replace_mode=False)
+        d.show()
+
+    def _on_replace_dialog(self) -> None:
+        """置換ダイアログを表示する（Ctrl+H）。"""
+        d = FindReplaceDialog(self, self._script_edit, replace_mode=True)
+        d.show()
 
     def _on_save_script(self) -> None:
         """UIで編集中の台本をプロジェクトに保存する。プロジェクト未打開の場合は新規作成を促す。"""

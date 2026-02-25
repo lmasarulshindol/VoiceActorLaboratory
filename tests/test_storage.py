@@ -8,6 +8,20 @@ from src.project import Project, TakeInfo
 import src.storage as storage
 
 
+class TestDecodeScriptBytes:
+    def test_UTF8でデコード(self) -> None:
+        data = "台本テキスト".encode("utf-8")
+        assert storage.decode_script_bytes(data) == "台本テキスト"
+
+    def test_UTF8_BOMでデコード(self) -> None:
+        data = b"\xef\xbb\xbf" + "見出し".encode("utf-8")
+        assert storage.decode_script_bytes(data) == "見出し"
+
+    def test_CP932でフォールバック(self) -> None:
+        data = "日本語".encode("cp932")
+        assert storage.decode_script_bytes(data) == "日本語"
+
+
 class TestStorage:
     """storage のテスト。"""
 
@@ -33,6 +47,15 @@ class TestStorage:
             proj = storage.load_project(tmp)
             assert proj is not None
             assert proj.script_text == "台本テキスト"
+
+    def test_load_project_CP932のscriptを読める(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "takes").mkdir()
+            script_path = Path(tmp) / "script.txt"
+            script_path.write_bytes("シーン1".encode("cp932"))
+            proj = storage.load_project(tmp)
+            assert proj is not None
+            assert proj.script_text == "シーン1"
 
     def test_add_take_from_fileでWAVをコピーしメタに追加(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

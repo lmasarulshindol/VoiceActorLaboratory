@@ -12,6 +12,27 @@ from src.project import Project, TakeInfo
 from src.script_format import sanitize_for_filename
 
 SCRIPT_FILENAME = "script.txt"
+
+# 台本読み込みで試すエンコーディングの順（BOM付きUTF-8 → UTF-8 → CP932）
+_SCRIPT_ENCODINGS = ("utf-8-sig", "utf-8", "cp932")
+
+
+def decode_script_bytes(data: bytes) -> str:
+    """
+    バイト列を台本テキストとしてデコードする。
+    UTF-8 → UTF-8(BOM) → CP932 の順で試し、最初に成功したものを返す。
+    すべて失敗した場合は UTF-8 でデコードを試み、例外をそのまま上げる。
+    """
+    last_error: Exception | None = None
+    for enc in _SCRIPT_ENCODINGS:
+        try:
+            return data.decode(enc)
+        except (UnicodeDecodeError, LookupError) as e:
+            last_error = e
+            continue
+    if last_error is not None:
+        raise last_error
+    return data.decode("utf-8")
 META_FILENAME = "project_meta.json"
 TAKES_DIR = "takes"
 
@@ -40,7 +61,7 @@ def load_project(project_dir: str) -> Project | None:
     script_file = path / SCRIPT_FILENAME
     script_text = ""
     if script_file.exists():
-        script_text = script_file.read_text(encoding="utf-8")
+        script_text = decode_script_bytes(script_file.read_bytes())
     meta = _load_meta(project_dir)
     takes = []
     if meta and "takes" in meta:
