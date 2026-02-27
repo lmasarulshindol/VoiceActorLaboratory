@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import numpy as np
 from PyQt6.QtCore import Qt, QRect, QPointF, pyqtSignal
-from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QLinearGradient, QPainterPath, QMouseEvent
+from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QLinearGradient, QPainterPath, QMouseEvent, QWheelEvent
 from PyQt6.QtWidgets import QWidget, QSizePolicy
 
 
@@ -61,6 +61,8 @@ class WaveformWidget(QWidget):
         self._design_id: int = 0
         self._is_dark: bool = False
         self._seekable: bool = False
+        self._zoom_ratio: float = 1.0  # 1.0=全体表示, 2.0=2倍ズーム（半分の時間幅）
+        self._view_start_ratio: float = 0.0  # 表示開始位置 0.0〜1.0
 
     def set_samples(self, samples: np.ndarray) -> None:
         """表示するサンプル（float32, -1〜1）を設定。"""
@@ -98,13 +100,30 @@ class WaveformWidget(QWidget):
         self._seekable = enabled
         self.setCursor(Qt.CursorShape.PointingHandCursor if enabled else Qt.CursorShape.ArrowCursor)
 
+    def set_zoom_ratio(self, ratio: float) -> None:
+        """時間軸ズーム倍率。1.0=全体、2.0=2倍ズーム（表示幅は半分）。"""
+        self._zoom_ratio = max(1.0, min(20.0, ratio))
+        self._clamp_view_start()
+        self.update()
+
+    def get_zoom_ratio(self) -> float:
+        return self._zoom_ratio
+
+    def _clamp_view_start(self) -> None:
+        """ズームに応じて表示開始位置を有効範囲に収める。"""
+        span = 1.0 / self._zoom_ratio
+        self._view_start_ratio = max(0.0, min(1.0 - span, self._view_start_ratio))
+
     def _emit_seek_from_x(self, x: int) -> None:
         if not self._seekable or self._duration_seconds <= 0:
             return
         w = self.width()
         if w <= 0:
             return
-        ratio = max(0.0, min(1.0, x / w))
+        # ズーム時は表示範囲内の相対位置を全体の比率に変換
+        span = 1.0 / self._zoom_ratio
+        local = max(0.0, min(1.0, x / w))
+        ratio = max(0.0, min(1.0, self._view_start_ratio + local * span))
         self.seekRequested.emit(ratio)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
@@ -116,6 +135,37 @@ class WaveformWidget(QWidget):
         super().mouseMoveEvent(event)
         if event.buttons() & Qt.MouseButton.LeftButton:
             self._emit_seek_from_x(int(event.position().x()))
+
+    def wheelEvent(self, event: QWheelEvent) -> None:
+        """マウスホイールで時間軸ズーム（シーク可能時のみ）。"""
+        if not self._seekable or self._duration_seconds <= 0:
+            super().wheelEvent(event)
+            return
+        delta = event.angleDelta().y()
+        if delta > 0:
+            # ズームイン: 表示幅を半分に
+            new_zoom = min(20.0, self._zoom_ratio * 1.2)
+            # カーソル位置を中心に保つ
+            w = self.width()
+            if w > 0:
+                cursor_local = event.position().x() / w
+                old_span = 1.0 / self._zoom_ratio
+                new_span = 1.0 / new_zoom
+                self._zoom_ratio = new_zoom
+                self._view_start_ratio = self._view_start_ratio + cursor_local * (old_span - new_span)
+                self._clamp_view_start()
+        else:
+            new_zoom = max(1.0, self._zoom_ratio / 1.2)
+            w = self.width()
+            if w > 0:
+                cursor_local = event.position().x() / w
+                old_span = 1.0 / self._zoom_ratio
+                new_span = 1.0 / new_zoom
+                self._zoom_ratio = new_zoom
+                self._view_start_ratio = self._view_start_ratio + cursor_local * (old_span - new_span)
+                self._clamp_view_start()
+        self.update()
+        event.accept()
 
     def paintEvent(self, event: object) -> None:
         from PyQt6.QtGui import QPaintEvent
@@ -132,12 +182,23 @@ class WaveformWidget(QWidget):
         if len(samples) == 0:
             _draw_empty(painter, w, h, self._is_dark)
             return
-        # 表示用にダウンサンプル（再生時は全体、録音時は直近）
-        n_show = int(self._duration_seconds * 44100) if self._duration_seconds > 0 else len(samples)
-        if n_show < len(samples) and self._duration_seconds > 0:
-            # 再生: 全体のうち position に合わせて表示範囲をずらすこともできるが、ここでは常に全体
-            start = max(0, len(samples) - n_show)
-            samples = samples[start:]
+        n_total = len(samples)
+        # 表示用にダウンサンプル（再生時はズーム範囲、録音時は直近）
+        if self._duration_seconds > 0:
+            span = 1.0 / self._zoom_ratio
+            start_r = max(0.0, min(1.0 - span, self._view_start_ratio))
+            start_idx = int(start_r * n_total)
+            end_idx = int((start_r + span) * n_total)
+            end_idx = min(end_idx, n_total)
+            if start_idx < end_idx:
+                samples = samples[start_idx:end_idx]
+            else:
+                samples = samples[:1]  # 空でないように
+        else:
+            n_show = n_total
+            if n_total > 0:
+                start = max(0, n_total - n_show)
+                samples = samples[start:]
         y_vals = _downsample(samples, w)
         if len(y_vals) == 0:
             return
@@ -147,10 +208,14 @@ class WaveformWidget(QWidget):
                 y_vals = y_vals / peak
         center = h / 2.0
         half = (h - 4) / 2.0
-        # 再生ヘッド位置（0.0〜1.0）
+        # 再生ヘッド位置（表示範囲内で 0.0〜1.0）
         head = None
         if self._position_seconds is not None and self._duration_seconds > 0:
-            head = self._position_seconds / self._duration_seconds
+            span = 1.0 / self._zoom_ratio
+            pos_ratio = self._position_seconds / self._duration_seconds
+            head_in_view = (pos_ratio - self._view_start_ratio) / span if span > 0 else 0.0
+            if 0 <= head_in_view <= 1:
+                head = head_in_view
         design = self._design_id
         if design == 0:
             _paint_classic_line(painter, w, h, y_vals, center, half, head, self._is_dark)

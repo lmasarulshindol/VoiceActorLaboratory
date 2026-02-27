@@ -154,3 +154,21 @@ def get_auto_play_after_record() -> bool:
 
 def set_auto_play_after_record(value: bool) -> None:
     get_settings().setValue("auto_play_after_record", value)
+
+
+def get_take_list_filter() -> str:
+    """テイク一覧のフィルタ: all / favorite / adopted"""
+    return get_settings().value("take_list_filter", "all", type=str)
+
+
+def set_take_list_filter(value: str) -> None:
+    get_settings().setValue("take_list_filter", value)
+
+
+def get_take_list_sort() -> str:
+    """テイク一覧の並び順: date_desc / date_asc / favorite_first / adopted_first"""
+    return get_settings().value("take_list_sort", "date_desc", type=str)
+
+
+def set_take_list_sort(value: str) -> None:
+    get_settings().setValue("take_list_sort", value)

@@ -70,6 +70,10 @@ from src.ui.settings import (
     set_recording_mode,
     get_auto_play_after_record,
     set_auto_play_after_record,
+    get_take_list_filter,
+    set_take_list_filter,
+    get_take_list_sort,
+    set_take_list_sort,
 )
 from src.ui.waveform_widget import WaveformWidget
 from src.ui.settings_dialog import SettingsDialog
@@ -131,6 +135,7 @@ class MainWindow(QMainWindow):
         self._recording_blink_timer = QTimer(self)  # 録音ボタンの点滅用タイマー
         self._recording_blink_state = False  # 録音ボタンの点滅状態
         self._recording_blink_timer.timeout.connect(self._on_recording_blink_tick)
+        self._ab_compare_queue: list[str] = []  # A/B比較で連続再生するテイクIDのキュー
         self._build_ui()
         self._setup_shortcuts()
         geo = get_main_window_geometry()
@@ -219,6 +224,10 @@ class MainWindow(QMainWindow):
         act_howto.setToolTip("録音〜再生までの手順を表示")
         act_howto.triggered.connect(self._on_show_howto)
         help_menu.addAction(act_howto)
+        act_shortcuts = QAction("キーボードショートカット", self)
+        act_shortcuts.setToolTip("ショートカット一覧を表示")
+        act_shortcuts.triggered.connect(self._on_show_shortcuts)
+        help_menu.addAction(act_shortcuts)
         act_about = QAction("このアプリについて", self)
         act_about.triggered.connect(self._on_show_about)
         help_menu.addAction(act_about)
@@ -413,12 +422,40 @@ class MainWindow(QMainWindow):
         take_label = QLabel("テイク一覧")
         take_label.setObjectName("heading")
         take_layout.addWidget(take_label)
+        # フィルタ・ソート
+        take_filter_sort_row = QHBoxLayout()
+        take_filter_sort_row.addWidget(QLabel("表示:"))
+        self._take_filter_combo = QComboBox()
+        self._take_filter_combo.addItem("すべて", "all")
+        self._take_filter_combo.addItem("お気に入りのみ", "favorite")
+        self._take_filter_combo.addItem("採用のみ", "adopted")
+        self._take_filter_combo.setToolTip("一覧に表示するテイクを絞り込み")
+        take_filter_sort_row.addWidget(self._take_filter_combo)
+        take_filter_sort_row.addWidget(QLabel("並び:"))
+        self._take_sort_combo = QComboBox()
+        self._take_sort_combo.addItem("日付（新しい順）", "date_desc")
+        self._take_sort_combo.addItem("日付（古い順）", "date_asc")
+        self._take_sort_combo.addItem("お気に入り優先", "favorite_first")
+        self._take_sort_combo.addItem("採用優先", "adopted_first")
+        self._take_sort_combo.setToolTip("テイクの並び順")
+        take_filter_sort_row.addWidget(self._take_sort_combo)
+        take_filter_sort_row.addStretch()
+        take_layout.addLayout(take_filter_sort_row)
+        self._take_filter_combo.currentIndexChanged.connect(self._on_take_filter_sort_changed)
+        self._take_sort_combo.currentIndexChanged.connect(self._on_take_filter_sort_changed)
+        idx_f = self._take_filter_combo.findData(get_take_list_filter())
+        if idx_f >= 0:
+            self._take_filter_combo.setCurrentIndex(idx_f)
+        idx_s = self._take_sort_combo.findData(get_take_list_sort())
+        if idx_s >= 0:
+            self._take_sort_combo.setCurrentIndex(idx_s)
         self._take_list_hint = QLabel("録音開始でテイクが追加されます")
         self._take_list_hint.setObjectName("caption")
         take_layout.addWidget(self._take_list_hint)
         self._take_list = QListWidget()
         self._take_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self._take_list.itemDoubleClicked.connect(self._on_take_double_clicked)
+        self._take_list.currentItemChanged.connect(self._on_take_list_selection_changed)
         take_layout.addWidget(self._take_list)
         splitter.addWidget(take_panel)
         splitter.setSizes([500, 400])
@@ -488,9 +525,22 @@ class MainWindow(QMainWindow):
         # 中央: 波形表示（録音・再生を切り替え表示）
         waveform_group = QVBoxLayout()
         waveform_group.setSpacing(4)
+        waveform_header = QHBoxLayout()
         waveform_label = QLabel("波形")
         waveform_label.setObjectName("heading")
-        waveform_group.addWidget(waveform_label)
+        waveform_header.addWidget(waveform_label)
+        self._waveform_zoom_out_btn = QPushButton("−")
+        self._waveform_zoom_out_btn.setToolTip("ズームアウト（時間軸を広く）")
+        self._waveform_zoom_out_btn.setFixedWidth(28)
+        self._waveform_zoom_out_btn.clicked.connect(self._on_waveform_zoom_out)
+        waveform_header.addWidget(self._waveform_zoom_out_btn)
+        self._waveform_zoom_in_btn = QPushButton("＋")
+        self._waveform_zoom_in_btn.setToolTip("ズームイン（時間軸を拡大）")
+        self._waveform_zoom_in_btn.setFixedWidth(28)
+        self._waveform_zoom_in_btn.clicked.connect(self._on_waveform_zoom_in)
+        waveform_header.addWidget(self._waveform_zoom_in_btn)
+        waveform_header.addStretch()
+        waveform_group.addLayout(waveform_header)
         
         # 録音波形と再生波形を統合表示（StackedWidgetで切り替え）
         self._waveform_stack = QStackedWidget()
@@ -805,9 +855,9 @@ class MainWindow(QMainWindow):
         sec = self._recorder.get_buffer_duration_seconds()
         duration_str = self._format_duration(sec)
         self._recording_label.setText(duration_str)
-        # ステータスバーにも録音時間を表示
+        # ステータスバーに REC ● 経過時間 を常時表示（視覚的フィードバック）
         if hasattr(self, '_status_recording_time'):
-            self._status_recording_time.setText(f"録音: {duration_str}")
+            self._status_recording_time.setText(f"REC ● {duration_str}")
         if self.statusBar():
             self.statusBar().showMessage(f"録音中 {duration_str}")
         samples = self._recorder.get_visualization_samples(max_seconds=10.0)
@@ -919,9 +969,48 @@ class MainWindow(QMainWindow):
                 }
             """)
 
+    def _on_take_filter_sort_changed(self) -> None:
+        """テイク一覧のフィルタ・ソート変更時に設定を保存して一覧を再描画。"""
+        filter_val = self._take_filter_combo.currentData()
+        sort_val = self._take_sort_combo.currentData()
+        if filter_val:
+            set_take_list_filter(filter_val)
+        if sort_val:
+            set_take_list_sort(sort_val)
+        self._refresh_take_list()
+
+    def _get_filtered_sorted_takes(self) -> list[TakeInfo]:
+        """現在のフィルタ・ソート設定に従ってテイクのリストを返す。"""
+        from datetime import datetime
+        takes = list(self._project.takes)
+        filter_val = get_take_list_filter()
+        if filter_val == "favorite":
+            takes = [t for t in takes if t.favorite]
+        elif filter_val == "adopted":
+            takes = [t for t in takes if t.adopted]
+        sort_val = get_take_list_sort()
+        def sort_key(t: TakeInfo):
+            try:
+                dt = datetime.fromisoformat(t.created_at.replace("Z", "+00:00"))
+                ts = dt.timestamp()
+            except (ValueError, TypeError):
+                ts = 0.0
+            if sort_val == "date_desc":
+                return (-ts, 0)
+            if sort_val == "date_asc":
+                return (ts, 0)
+            if sort_val == "favorite_first":
+                return (0 if t.favorite else 1, -ts)
+            if sort_val == "adopted_first":
+                return (0 if t.adopted else 1, -ts)
+            return (-ts, 0)
+        takes.sort(key=sort_key)
+        return takes
+
     def _refresh_take_list(self) -> None:
         self._take_list.clear()
-        for i, t in enumerate(self._project.takes):
+        takes_to_show = self._get_filtered_sorted_takes()
+        for i, t in enumerate(takes_to_show):
             fav = "★ " if t.favorite else ""
             new_badge = "🆕 " if t.id in self._new_take_ids else ""
             adopted = "  [採用]" if t.adopted else ""
@@ -944,7 +1033,12 @@ class MainWindow(QMainWindow):
             item.setToolTip("\n".join(tooltip_parts))
             self._take_list.addItem(item)
         if self._project.takes:
-            self._take_list_hint.setText("ダブルクリックで再生／右クリックでメモ・採用・削除")
+            total = len(self._project.takes)
+            shown = len(takes_to_show)
+            if shown < total:
+                self._take_list_hint.setText(f"{shown}件表示（全{total}件）／ダブルクリックで再生")
+            else:
+                self._take_list_hint.setText("ダブルクリックで再生／右クリックでメモ・採用・削除")
         else:
             self._take_list_hint.setText("録音開始でテイクが追加されます")
         self._refresh_take_list_highlight()
@@ -1003,41 +1097,56 @@ class MainWindow(QMainWindow):
 
     def _highlight_current_line(self) -> None:
         """
-        現在のカーソル行をハイライト表示する。テーマに応じた色を使用。
+        現在のカーソル行と、選択中テイクに対応する台本行をハイライト表示する。
         """
         try:
             from PyQt6.QtGui import QColor
             from PyQt6.QtWidgets import QPlainTextEdit
+            dark = get_theme() == "dark"
+            selections: list[QPlainTextEdit.ExtraSelection] = []
+
+            # 1. 現在のカーソル行をハイライト
             cursor = self._script_edit.textCursor()
-            # 行の先頭に移動
             cursor.movePosition(cursor.MoveOperation.StartOfLine)
-            # 行の終わりまで選択
             cursor.movePosition(cursor.MoveOperation.EndOfLine, cursor.MoveMode.KeepAnchor)
-            
             extra = QPlainTextEdit.ExtraSelection()
             extra.cursor = cursor
-            
-            # テーマに応じた色を設定
-            dark = get_theme() == "dark"
             if dark:
-                # ダークテーマ: 明るい青系の背景、白いテキスト
-                extra.format.setBackground(QColor(30, 144, 255))  # ドジャーブルー
-                extra.format.setForeground(QColor(255, 255, 255))  # 白
+                extra.format.setBackground(QColor(30, 144, 255))
+                extra.format.setForeground(QColor(255, 255, 255))
             else:
-                # ライトテーマ: 明るい青系の背景、濃いテキスト
-                extra.format.setBackground(QColor(173, 216, 230))  # ライトブルー
-                extra.format.setForeground(QColor(0, 0, 0))  # 黒
-            
-            # 太字にしてより目立たせる
+                extra.format.setBackground(QColor(173, 216, 230))
+                extra.format.setForeground(QColor(0, 0, 0))
             extra.format.setFontWeight(600)
-            
-            # ハイライトを適用
-            self._script_edit.setExtraSelections([extra])
-        except Exception as e:
-            # エラー時はハイライトをクリア
+            selections.append(extra)
+
+            # 2. 選択中テイクの script_line_number に対応する行を別色で強調（紐付けがある場合）
+            cur_item = self._take_list.currentItem()
+            if cur_item:
+                take_id = cur_item.data(Qt.ItemDataRole.UserRole)
+                t = self._project.get_take(take_id) if take_id else None
+                if t and t.script_line_number is not None and t.script_line_number >= 1:
+                    doc = self._script_edit.document()
+                    block = doc.findBlockByLineNumber(t.script_line_number - 1)
+                    if block.isValid():
+                        tc = self._script_edit.textCursor()
+                        tc.setPosition(block.position())
+                        tc.movePosition(tc.MoveOperation.EndOfLine, tc.MoveMode.KeepAnchor)
+                        extra_take = QPlainTextEdit.ExtraSelection()
+                        extra_take.cursor = tc
+                        if dark:
+                            extra_take.format.setBackground(QColor(70, 130, 70))  # 暗めの緑
+                            extra_take.format.setForeground(QColor(220, 220, 220))
+                        else:
+                            extra_take.format.setBackground(QColor(200, 230, 200))  # 薄い緑
+                            extra_take.format.setForeground(QColor(0, 0, 0))
+                        selections.append(extra_take)
+
+            self._script_edit.setExtraSelections(selections)
+        except Exception:
             try:
                 self._script_edit.setExtraSelections([])
-            except:
+            except Exception:
                 pass
 
     def _update_status_script_position(self) -> None:
@@ -1201,6 +1310,37 @@ class MainWindow(QMainWindow):
         )
         QMessageBox.information(self, "使い方", text)
 
+    def _on_show_shortcuts(self) -> None:
+        """ヘルプ「キーボードショートカット」ダイアログを表示する。"""
+        text = (
+            "【録音】\n"
+            "F9 / Ctrl+R / R … 録音開始・一時停止の切り替え\n"
+            "F10 / Ctrl+Shift+R … 録音停止（テイクとして保存）\n\n"
+            "【再生】\n"
+            "Space / P … 再生・一時停止の切り替え\n"
+            "← / → … 5秒戻る・進む（シーク）\n\n"
+            "【テイク一覧】（フォーカスがあるとき）\n"
+            "ダブルクリック / Enter … 選択テイクを再生\n"
+            "Delete … 選択テイクを削除\n"
+            "Ctrl+→ … 次のテイクに移動\n"
+            "Ctrl+← … 前のテイクに移動\n\n"
+            "【編集】\n"
+            "Ctrl+F … 検索\n"
+            "Ctrl+H … 置換"
+        )
+        dlg = QDialog(self)
+        dlg.setWindowTitle("キーボードショートカット")
+        layout = QVBoxLayout(dlg)
+        te = QPlainTextEdit()
+        te.setPlainText(text)
+        te.setReadOnly(True)
+        te.setMinimumSize(400, 320)
+        layout.addWidget(te)
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
+        bb.accepted.connect(dlg.accept)
+        layout.addWidget(bb)
+        dlg.exec()
+
     def _on_new_project(self) -> None:
         path = QFileDialog.getExistingDirectory(
             self, "新規プロジェクトの保存先を選択", directory=get_last_project_dialog_dir() or ""
@@ -1339,10 +1479,12 @@ class MainWindow(QMainWindow):
                 preferred_basename = suggest_take_basename(script_text, cursor_pos, existing, mode=mode)
                 
                 memo = ""
+                script_line_number = None
                 if mode == "individual":
                     line_text = get_current_line_text(script_text, cursor_pos)
                     if line_text:
                         memo = line_text
+                    script_line_number = get_current_line_number(script_text, cursor_pos)
 
                 take = storage.add_take_from_file(
                     self._project.project_dir,
@@ -1350,6 +1492,7 @@ class MainWindow(QMainWindow):
                     memo=memo,
                     favorite=False,
                     preferred_basename=preferred_basename,
+                    script_line_number=script_line_number,
                 )
                 self._project.add_take(take)
                 self._refresh_take_list()
@@ -1403,6 +1546,45 @@ class MainWindow(QMainWindow):
         # 元の設定に戻す
         set_auto_play_after_record(was_auto_play)
 
+    def _on_take_list_selection_changed(self, current: QListWidgetItem | None, previous: QListWidgetItem | None) -> None:
+        """テイク一覧の選択変更時、紐付いた台本行へスクロールし、ハイライトを更新する。"""
+        if current is None:
+            return
+        take_id = current.data(Qt.ItemDataRole.UserRole)
+        t = self._project.get_take(take_id) if take_id else None
+        if t and t.script_line_number is not None:
+            self._scroll_script_to_line(t.script_line_number)
+        self._highlight_current_line()
+
+    def _scroll_script_to_line(self, line_number: int | None) -> None:
+        """台本エリアを指定行（1-based）にスクロールし、カーソルを移動する。"""
+        if line_number is None or line_number < 1:
+            return
+        doc = self._script_edit.document()
+        block = doc.findBlockByLineNumber(line_number - 1)  # 0-based
+        if block.isValid():
+            cursor = self._script_edit.textCursor()
+            cursor.setPosition(block.position())
+            self._script_edit.setTextCursor(cursor)
+            self._script_edit.ensureCursorVisible()
+
+    def _play_take_by_id(self, take_id: str) -> None:
+        """テイクIDを指定して再生を開始する（A/B比較などで使用）。"""
+        t = self._project.get_take(take_id)
+        if t is None:
+            return
+        wav_path = storage.get_take_wav_path(self._project.project_dir, t.wav_filename)
+        self._playing_take_id = take_id
+        self._loaded_take_id = take_id
+        self._load_playback_waveform(wav_path)
+        self._playback.play(wav_path)
+        self._playback_position_timer.start(80)
+        if hasattr(self, '_waveform_stack'):
+            self._waveform_stack.setCurrentIndex(1)
+        if t.script_line_number is not None:
+            self._scroll_script_to_line(t.script_line_number)
+        self._update_ui_state()
+
     def _on_take_double_clicked(self, item: QListWidgetItem) -> None:
         take_id = item.data(Qt.ItemDataRole.UserRole)
         t = self._project.get_take(take_id)
@@ -1414,9 +1596,10 @@ class MainWindow(QMainWindow):
         self._load_playback_waveform(wav_path)
         self._playback.play(wav_path)
         self._playback_position_timer.start(80)
-        # 再生開始時に再生波形を表示
         if hasattr(self, '_waveform_stack'):
             self._waveform_stack.setCurrentIndex(1)
+        if t.script_line_number is not None:
+            self._scroll_script_to_line(t.script_line_number)
         self._update_ui_state()
 
     def _on_play_pause_toggle(self) -> None:
@@ -1444,6 +1627,16 @@ class MainWindow(QMainWindow):
                 else:
                     self._on_take_double_clicked(item)
         self._update_ui_state()
+
+    def _on_waveform_zoom_in(self) -> None:
+        """波形の時間軸をズームイン。"""
+        r = self._playback_waveform.get_zoom_ratio()
+        self._playback_waveform.set_zoom_ratio(r * 1.2)
+
+    def _on_waveform_zoom_out(self) -> None:
+        """波形の時間軸をズームアウト。"""
+        r = self._playback_waveform.get_zoom_ratio()
+        self._playback_waveform.set_zoom_ratio(r / 1.2)
 
     def _on_playback_seek_requested(self, ratio: float) -> None:
         """波形クリック・ドラッグでシーク。"""
@@ -1514,6 +1707,7 @@ class MainWindow(QMainWindow):
         self._playback.stop()
         self._playback_position_timer.stop()
         self._playing_take_id = None
+        self._ab_compare_queue.clear()
         self._playback_waveform.set_position_seconds(None)
         if self._playback_duration_seconds > 0:
             total_str = self._format_duration(self._playback_duration_seconds)
@@ -1531,6 +1725,18 @@ class MainWindow(QMainWindow):
         now_playing = self._playback.is_playing
         now_stopped = not now_playing and not self._playback.is_paused
         if self._last_playback_was_playing and now_stopped:
+            # A/B比較キュー: 今再生していたテイクの次があれば再生
+            if self._ab_compare_queue and self._playing_take_id == self._ab_compare_queue[0]:
+                self._ab_compare_queue.pop(0)
+                if self._ab_compare_queue:
+                    next_id = self._ab_compare_queue[0]
+                    QTimer.singleShot(300, lambda: self._play_take_by_id(next_id))
+                else:
+                    if self.statusBar():
+                        self.statusBar().showMessage("A/B比較の再生が終わりました")
+                self._last_playback_was_playing = False
+                self._update_ui_state()
+                return
             if self.statusBar():
                 self.statusBar().showMessage("再生が終わりました")
         self._last_playback_was_playing = now_playing
@@ -1549,9 +1755,15 @@ class MainWindow(QMainWindow):
             total_str = self._format_duration(self._playback_duration_seconds)
             pos_str = self._format_duration(pos_sec)
             self._playback_time_label.setText(f"{pos_str} / {total_str}")
-            # ステータスバーにも再生時間を表示
+            # ステータスバーに再生中テイク名 + 位置を表示
             if hasattr(self, '_status_playback_time'):
-                self._status_playback_time.setText(f"再生: {pos_str} / {total_str}")
+                take_label = ""
+                if self._playing_take_id:
+                    t = self._project.get_take(self._playing_take_id)
+                    if t:
+                        idx = next((i for i, x in enumerate(self._project.takes) if x.id == self._playing_take_id), 0)
+                        take_label = t.display_name(idx) + " — "
+                self._status_playback_time.setText(f"再生中: {take_label}{pos_str} / {total_str}")
         else:
             self._playback_time_label.setText("0:00 / 0:00")
             # 再生時間がない場合はクリア
@@ -1570,6 +1782,7 @@ class MainWindow(QMainWindow):
             self._playback_waveform.set_samples(data)
             self._playback_waveform.set_duration_seconds(duration)
             self._playback_waveform.set_position_seconds(0.0)
+            self._playback_waveform.set_zoom_ratio(1.0)
             self._playback_time_label.setText(
                 f"0:00 / {self._format_duration(duration)}"
             )
@@ -1581,12 +1794,22 @@ class MainWindow(QMainWindow):
             self._playback_time_label.setText("0:00 / 0:00")
 
     def _on_show_settings(self) -> None:
-        """設定ダイアログを表示し、OK なら波形デザインを反映。"""
+        """設定ダイアログを表示し、OK ならテーマ・フォント・波形・録音モード等を反映。"""
         dlg = SettingsDialog(self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_theme(get_theme())
+            self._apply_script_font_size(get_script_font_size())
+            mode = get_recording_mode()
+            idx = self._record_mode_combo.findData(mode)
+            if idx >= 0:
+                self._record_mode_combo.setCurrentIndex(idx)
+            self._current_line_preview_frame.setVisible(mode == "individual")
+            if mode == "individual":
+                self._update_current_line_preview()
             design = get_waveform_design()
             self._record_waveform.set_design_id(design)
             self._playback_waveform.set_design_id(design)
+            self.statusBar().showMessage("設定を反映しました。", 3000)
 
     def _on_take_context_menu(self, pos: typing.Any) -> None:
         item = self._take_list.itemAt(pos)
@@ -1594,6 +1817,21 @@ class MainWindow(QMainWindow):
             return
         take_id = item.data(Qt.ItemDataRole.UserRole)
         menu = QMenu(self)
+        # A/B比較: 2件選択時のみ表示
+        selected = [
+            self._take_list.item(i).data(Qt.ItemDataRole.UserRole)
+            for i in range(self._take_list.count())
+            if self._take_list.item(i).isSelected()
+        ]
+        if len(selected) == 2:
+            act_ab = QAction("A/B比較で再生（A→Bの順）", self)
+            def start_ab_compare():
+                self._ab_compare_queue = list(selected)
+                self._play_take_by_id(self._ab_compare_queue[0])
+                self.statusBar().showMessage("A/B比較: 2本を順に再生します", 3000)
+            act_ab.triggered.connect(start_ab_compare)
+            menu.addAction(act_ab)
+            menu.addSeparator()
         t = self._project.get_take(take_id)
         fav_label = "お気に入り解除" if (t and t.favorite) else "お気に入りに追加"
         act_fav = QAction(fav_label, self)
@@ -1782,6 +2020,7 @@ class MainWindow(QMainWindow):
         ]
         adopted = self._project.get_adopted_take()
         adopted_ids = [adopted.id] if adopted else []
+        favorite_ids = [t.id for t in self._project.takes if t.favorite]
         if not self._project.takes:
             QMessageBox.information(self, "エクスポート", "テイクがありません。")
             return
@@ -1792,23 +2031,33 @@ class MainWindow(QMainWindow):
         r_all = QRadioButton("全テイク")
         r_selected = QRadioButton("選択したテイク")
         r_adopted = QRadioButton("採用テイクのみ")
+        r_favorite = QRadioButton("お気に入りのみ")
         if adopted_ids:
             r_adopted.setEnabled(True)
         else:
             r_adopted.setEnabled(False)
             r_adopted.setToolTip("採用テイクがありません")
+        if favorite_ids:
+            r_favorite.setEnabled(True)
+        else:
+            r_favorite.setEnabled(False)
+            r_favorite.setToolTip("お気に入りテイクがありません")
         if selected_ids:
             r_selected.setChecked(True)
         elif adopted_ids:
             r_adopted.setChecked(True)
+        elif favorite_ids:
+            r_favorite.setChecked(True)
         else:
             r_all.setChecked(True)
         grp.addButton(r_all)
         grp.addButton(r_selected)
         grp.addButton(r_adopted)
+        grp.addButton(r_favorite)
         layout.addWidget(r_all)
         layout.addWidget(r_selected)
         layout.addWidget(r_adopted)
+        layout.addWidget(r_favorite)
         friendly = QCheckBox("ファイル名を「プロジェクト名_Take1.wav」形式にする")
         friendly.setChecked(get_export_use_friendly_names())
         layout.addWidget(friendly)
@@ -1824,6 +2073,8 @@ class MainWindow(QMainWindow):
             take_ids = selected_ids
         elif r_adopted.isChecked() and adopted_ids:
             take_ids = adopted_ids
+        elif r_favorite.isChecked() and favorite_ids:
+            take_ids = favorite_ids
         else:
             take_ids = [t.id for t in self._project.takes]
         set_export_use_friendly_names(friendly.isChecked())

@@ -16,6 +16,7 @@ class TakeInfo:
     favorite: bool = False
     created_at: str = ""
     adopted: bool = False
+    script_line_number: int | None = None  # 台本の何行目に対応するか（1-based、紐付け用）
 
     def display_name(self, index: int | None = None) -> str:
         """一覧表示用。index を渡すと 'Take 1  02/19 14:32' 形式、否则 wav_filename。"""
