@@ -12,6 +12,8 @@ from src.project import Project, TakeInfo
 from src.script_format import sanitize_for_filename
 
 SCRIPT_FILENAME = "script.txt"
+SCRIPT_FILENAME_MD = "script.md"
+_SCRIPT_FILENAMES = (SCRIPT_FILENAME_MD, SCRIPT_FILENAME)
 
 # 台本読み込みで試すエンコーディングの順（BOM付きUTF-8 → UTF-8 → CP932）
 _SCRIPT_ENCODINGS = ("utf-8-sig", "utf-8", "cp932")
@@ -50,6 +52,16 @@ def create_project(project_dir: str) -> Project:
     return proj
 
 
+def find_script_file(project_dir: str) -> Path | None:
+    """プロジェクトフォルダ内の台本ファイルを探す。.md を優先し、なければ .txt を返す。"""
+    path = Path(project_dir)
+    for name in _SCRIPT_FILENAMES:
+        f = path / name
+        if f.exists():
+            return f
+    return None
+
+
 def load_project(project_dir: str) -> Project | None:
     """
     プロジェクトフォルダから Project を読み込む。
@@ -58,7 +70,9 @@ def load_project(project_dir: str) -> Project | None:
     path = Path(project_dir)
     if not path.is_dir():
         return None
-    script_file = path / SCRIPT_FILENAME
+    script_file = find_script_file(project_dir)
+    if script_file is None:
+        script_file = path / SCRIPT_FILENAME
     script_text = ""
     if script_file.exists():
         script_text = decode_script_bytes(script_file.read_bytes())
@@ -85,11 +99,16 @@ def load_project(project_dir: str) -> Project | None:
     )
 
 
-def save_script(project_dir: str, text: str) -> None:
-    """台本テキストを script.txt に保存する。"""
+def save_script(project_dir: str, text: str, *, use_md: bool | None = None) -> None:
+    """台本テキストを保存する。既存ファイルの拡張子を維持し、なければ use_md に従う（デフォルトは .md）。"""
     path = Path(project_dir)
     path.mkdir(parents=True, exist_ok=True)
-    (path / SCRIPT_FILENAME).write_text(text, encoding="utf-8")
+    existing = find_script_file(project_dir)
+    if existing is not None:
+        existing.write_text(text, encoding="utf-8")
+    else:
+        filename = SCRIPT_FILENAME_MD if (use_md is None or use_md) else SCRIPT_FILENAME
+        (path / filename).write_text(text, encoding="utf-8")
 
 
 def add_take_from_file(

@@ -1,6 +1,8 @@
 """
 メインウィンドウ。台本エリア・録音ボタン・テイク一覧を表示する。
 """
+import subprocess
+import sys
 import tempfile
 import typing
 from pathlib import Path
@@ -61,6 +63,10 @@ from src.ui.settings import (
     set_last_script_dialog_dir,
     get_main_window_geometry,
     set_main_window_geometry,
+    get_main_window_splitter_sizes,
+    set_main_window_splitter_sizes,
+    get_last_session_project_path,
+    set_last_session_project_path,
     get_input_device_id,
     set_input_device_id,
     get_output_device_id,
@@ -74,6 +80,7 @@ from src.ui.settings import (
     set_take_list_filter,
     get_take_list_sort,
     set_take_list_sort,
+    get_confirm_before_delete_take,
 )
 from src.ui.waveform_widget import WaveformWidget
 from src.ui.settings_dialog import SettingsDialog
@@ -84,6 +91,8 @@ from src.ui.theme_colors import (
     CARD_BORDER_DARK,
     TAKE_LIST_HIGHLIGHT_LIGHT,
     TAKE_LIST_HIGHLIGHT_DARK,
+    TAKE_LIST_SELECTED_LIGHT,
+    TAKE_LIST_SELECTED_DARK,
 )
 from src.ui.theme_loader import apply_app_theme
 from src.script_format import suggest_take_basename, get_current_line_text, get_current_line_number, get_current_section
@@ -104,7 +113,8 @@ class ScriptEdit(QPlainTextEdit):
         urls = e.mimeData().urls()
         if urls:
             path = urls[0].toLocalFile()
-            if path.lower().endswith(".txt") and self._on_file_dropped:
+            lower = path.lower()
+            if (lower.endswith(".txt") or lower.endswith(".md")) and self._on_file_dropped:
                 self._on_file_dropped(path)
         e.acceptProposedAction()
 
@@ -142,6 +152,8 @@ class MainWindow(QMainWindow):
         if geo:
             self.restoreGeometry(QByteArray(geo))
         self._update_ui_state()
+        # 前回開いていたプロジェクトを復元（ウィンドウ表示後に実行）
+        QTimer.singleShot(0, self._restore_last_session)
 
     def showEvent(self, event: QShowEvent) -> None:
         super().showEvent(event)
@@ -228,6 +240,11 @@ class MainWindow(QMainWindow):
         act_shortcuts.setToolTip("ショートカット一覧を表示")
         act_shortcuts.triggered.connect(self._on_show_shortcuts)
         help_menu.addAction(act_shortcuts)
+        help_menu.addSeparator()
+        act_restart = QAction("アプリを再起動", self)
+        act_restart.setToolTip("アプリケーションを再起動します")
+        act_restart.triggered.connect(self._on_restart_app)
+        help_menu.addAction(act_restart)
         act_about = QAction("このアプリについて", self)
         act_about.triggered.connect(self._on_show_about)
         help_menu.addAction(act_about)
@@ -378,7 +395,7 @@ class MainWindow(QMainWindow):
         script_edit_factory = lambda p: ScriptEdit(p, on_file_dropped=self._load_script_from_path)
         self._script_container = ScriptEditWithLineNumbers(self, script_edit_factory=script_edit_factory)
         self._script_edit = self._script_container.script_edit()
-        self._script_edit.setPlaceholderText("台本を入力。メニュー［台本を新規作成］で例を挿入できます。.txt をドロップしても開けます。")
+        self._script_edit.setPlaceholderText("台本を入力。メニュー［台本を新規作成］で例を挿入できます。.txt / .md をドロップしても開けます。")
         self._script_edit.cursorPositionChanged.connect(self._highlight_current_line)
         self._script_edit.cursorPositionChanged.connect(self._update_current_line_preview)
         self._script_edit.cursorPositionChanged.connect(self._update_status_script_position)
@@ -458,7 +475,12 @@ class MainWindow(QMainWindow):
         self._take_list.currentItemChanged.connect(self._on_take_list_selection_changed)
         take_layout.addWidget(self._take_list)
         splitter.addWidget(take_panel)
-        splitter.setSizes([500, 400])
+        self._main_splitter = splitter
+        saved_sizes = get_main_window_splitter_sizes()
+        if len(saved_sizes) == 2 and all(s > 0 for s in saved_sizes):
+            splitter.setSizes(saved_sizes)
+        else:
+            splitter.setSizes([500, 400])
 
         # 下部: 統合コントロールエリア（録音・再生ボタンを近接配置）
         control_frame = QFrame()
@@ -602,7 +624,7 @@ class MainWindow(QMainWindow):
         main_container_layout = QVBoxLayout(main_container)
         main_container_layout.setContentsMargins(0, 0, 0, 0)
         main_container_layout.setSpacing(0)
-        main_container_layout.addWidget(splitter, 1)
+        main_container_layout.addWidget(self._main_splitter, 1)
         main_container_layout.addWidget(control_frame)
 
         self._stacked.addWidget(main_container)
@@ -662,6 +684,12 @@ class MainWindow(QMainWindow):
 
         # ステータスバー（左: メッセージ、右: 録音時間・再生時間・ショートカット常時表示）
         self.statusBar().showMessage("新規プロジェクトまたはプロジェクトを開いてから、台本を入力・録音できます。")
+        
+        # 台本位置表示（行・シーン）
+        self._status_script_position = QLabel("")
+        self._status_script_position.setObjectName("statusScriptPosition")
+        self._status_script_position.setMinimumWidth(120)
+        self.statusBar().addPermanentWidget(self._status_script_position)
         
         # 録音時間表示
         self._status_recording_time = QLabel("")
@@ -824,6 +852,13 @@ class MainWindow(QMainWindow):
                 storage.save_script(self._project.project_dir, self._script_edit.toPlainText())
                 self._project.script_text = self._script_edit.toPlainText()
         set_main_window_geometry(bytes(self.saveGeometry()))
+        if self._project.has_project_dir():
+            set_last_session_project_path(self._project.project_dir)
+        else:
+            set_last_session_project_path(None)
+        sizes = self._main_splitter.sizes()
+        if len(sizes) == 2:
+            set_main_window_splitter_sizes(sizes)
         super().closeEvent(event)
 
     def _setup_shortcuts(self) -> None:
@@ -1008,6 +1043,18 @@ class MainWindow(QMainWindow):
         return takes
 
     def _refresh_take_list(self) -> None:
+        prev_current_id = None
+        prev_selected_ids: set[str] = set()
+        cur = self._take_list.currentItem()
+        if cur:
+            prev_current_id = cur.data(Qt.ItemDataRole.UserRole)
+        for i in range(self._take_list.count()):
+            it = self._take_list.item(i)
+            if it and it.isSelected():
+                tid = it.data(Qt.ItemDataRole.UserRole)
+                if tid:
+                    prev_selected_ids.add(tid)
+
         self._take_list.clear()
         takes_to_show = self._get_filtered_sorted_takes()
         for i, t in enumerate(takes_to_show):
@@ -1019,7 +1066,6 @@ class MainWindow(QMainWindow):
             line = f"{new_badge}{fav}{t.display_name(i)}{dur_str}  {t.memo}{adopted}"
             item = QListWidgetItem(line)
             item.setData(Qt.ItemDataRole.UserRole, t.id)
-            # ツールチップに詳細情報を追加
             tooltip_parts = []
             if t.memo:
                 tooltip_parts.append(f"メモ: {t.memo}")
@@ -1032,6 +1078,18 @@ class MainWindow(QMainWindow):
                 tooltip_parts.append("✓ 採用済み")
             item.setToolTip("\n".join(tooltip_parts))
             self._take_list.addItem(item)
+
+        # 以前の選択状態を復元
+        restored_current = False
+        for i in range(self._take_list.count()):
+            it = self._take_list.item(i)
+            tid = it.data(Qt.ItemDataRole.UserRole) if it else None
+            if tid and tid in prev_selected_ids:
+                it.setSelected(True)
+            if tid and tid == prev_current_id and not restored_current:
+                self._take_list.setCurrentItem(it)
+                restored_current = True
+
         if self._project.takes:
             total = len(self._project.takes)
             shown = len(takes_to_show)
@@ -1049,15 +1107,18 @@ class MainWindow(QMainWindow):
         self._refresh_take_list()
 
     def _refresh_take_list_highlight(self) -> None:
-        """再生中のテイク行をハイライトする。テーマに合わせた色で視認性を確保。"""
+        """再生中・選択中のテイク行をハイライト。再生中 > 選択中 > 通常 の優先度。"""
         dark = get_theme() == "dark"
         base = QColor(CARD_BG_DARK) if dark else self._take_list.palette().base()
-        highlight = QColor(TAKE_LIST_HIGHLIGHT_DARK) if dark else QColor(TAKE_LIST_HIGHLIGHT_LIGHT)
+        playing_color = QColor(TAKE_LIST_HIGHLIGHT_DARK) if dark else QColor(TAKE_LIST_HIGHLIGHT_LIGHT)
+        selected_color = QColor(TAKE_LIST_SELECTED_DARK) if dark else QColor(TAKE_LIST_SELECTED_LIGHT)
         for i in range(self._take_list.count()):
             item = self._take_list.item(i)
             take_id = item.data(Qt.ItemDataRole.UserRole)
             if take_id == self._playing_take_id:
-                item.setBackground(highlight)
+                item.setBackground(playing_color)
+            elif item.isSelected():
+                item.setBackground(selected_color)
             else:
                 item.setBackground(base)
     def _on_speed_changed(self, index: int) -> None:
@@ -1269,6 +1330,24 @@ class MainWindow(QMainWindow):
             btn.clicked.connect(lambda checked=False, p=path: self._open_recent_project(p))
             self._welcome_recent_layout.addWidget(btn)
 
+    def _restore_last_session(self) -> None:
+        """起動時に前回開いていたプロジェクト・台本を復元する。"""
+        path = get_last_session_project_path()
+        if not path or not Path(path).is_dir():
+            return
+        proj = storage.load_project(path)
+        if proj is None:
+            return
+        self._project = proj
+        self._reset_playback_ui()
+        self._script_edit.setPlainText(self._project.script_text)
+        self._refresh_take_list()
+        self._update_ui_state()
+        self._switch_to_main_view()
+        self.statusBar().showMessage(f"前回のセッションを復元: {self._project.project_dir}")
+        add_recent_project(path)
+        self._update_recent_menu()
+
     def _open_recent_project(self, path: str) -> None:
         if not Path(path).is_dir():
             QMessageBox.warning(self, "エラー", "プロジェクトフォルダが見つかりません。")
@@ -1288,6 +1367,24 @@ class MainWindow(QMainWindow):
     def _switch_to_main_view(self) -> None:
         """プロジェクト作成/打開後、メイン（台本・テイク）画面に切り替える。"""
         self._stacked.setCurrentIndex(1)
+
+    def _on_restart_app(self) -> None:
+        """ヘルプ「アプリを再起動」: 新しいプロセスを起動してから終了する。"""
+        if QMessageBox.question(
+            self,
+            "アプリを再起動",
+            "アプリケーションを再起動しますか？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        ) != QMessageBox.StandardButton.Yes:
+            return
+        argv = [sys.executable] + sys.argv
+        try:
+            subprocess.Popen(argv, cwd=Path.cwd())
+        except Exception as e:
+            QMessageBox.warning(self, "再起動エラー", f"再起動に失敗しました: {e}")
+            return
+        QApplication.quit()
 
     def _on_show_about(self) -> None:
         """ヘルプ「このアプリについて」ダイアログを表示する。"""
@@ -1400,7 +1497,7 @@ class MainWindow(QMainWindow):
 
     def _on_open_script(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
-            self, "台本を開く", get_last_script_dialog_dir() or "", "テキスト (*.txt);;すべて (*)"
+            self, "台本を開く", get_last_script_dialog_dir() or "", "台本ファイル (*.txt *.md);;テキスト (*.txt);;マークダウン (*.md);;すべて (*)"
         )
         if path:
             set_last_script_dialog_dir(str(Path(path).parent))
@@ -1866,50 +1963,25 @@ class MainWindow(QMainWindow):
                 self._refresh_take_list()
         act_memo.triggered.connect(edit_memo)
         menu.addAction(act_memo)
-        act_del = QAction("テイクを削除", self)
-        act_del.setShortcut(QKeySequence(Qt.Key.Key_Delete))
-        def delete_take():
-            if QMessageBox.question(
-                self, "確認", "このテイクを削除しますか？",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No,
-            ) != QMessageBox.StandardButton.Yes:
-                return
-            # 削除前に再生中のファイルなら停止してロック解除
-            if self._playing_take_id == take_id or self._loaded_take_id == take_id:
-                self._playback.release_file_lock()
-                self._playback_position_timer.stop()
-                self._playing_take_id = None
-                self._loaded_take_id = None
-                self._update_ui_state()
-                # ファイルロックが解放されるまで少し待ってから削除
-                QTimer.singleShot(100, lambda: self._delete_take_after_unlock(take_id))
-            else:
-                # 再生中でない場合は即座に削除
-                if storage.delete_take(self._project.project_dir, take_id):
-                    self._project = storage.load_project(self._project.project_dir) or self._project
-                    self._refresh_take_list()
-                else:
-                    QMessageBox.warning(self, "エラー", "削除に失敗しました。ファイルが使用中かもしれません。")
-        act_del.triggered.connect(delete_take)
-        menu.addAction(act_del)
-        
-        # このテイクを再生
-        act_play = QAction("このテイクを再生", self)
-        act_play.setShortcut(QKeySequence(Qt.Key.Key_Return))
+
+        menu.addSeparator()
+
+        # 再生
+        act_play = QAction("このテイクを再生    Enter", self)
         act_play.triggered.connect(lambda: self._on_take_double_clicked(item))
         menu.addAction(act_play)
-        
-        # このテイクをリテイク（削除して再録音）
+
+        # リテイク（削除して再録音）
         act_retake = QAction("このテイクをリテイク", self)
         def retake_take():
-            if QMessageBox.question(
-                self, "確認", "このテイクを削除して再録音しますか？",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No,
-            ) != QMessageBox.StandardButton.Yes:
-                return
-            # 削除処理
+            if get_confirm_before_delete_take():
+                box = QMessageBox(self)
+                box.setWindowTitle("確認")
+                box.setText("このテイクを削除して再録音しますか？")
+                box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                box.setDefaultButton(QMessageBox.StandardButton.Yes)
+                if box.exec() != QMessageBox.StandardButton.Yes:
+                    return
             if self._playing_take_id == take_id or self._loaded_take_id == take_id:
                 self._playback.release_file_lock()
                 self._playback_position_timer.stop()
@@ -1921,12 +1993,40 @@ class MainWindow(QMainWindow):
                 if storage.delete_take(self._project.project_dir, take_id):
                     self._project = storage.load_project(self._project.project_dir) or self._project
                     self._refresh_take_list()
-                    # 録音開始
                     if not self._recorder.is_recording:
                         self._on_record_toggle()
         act_retake.triggered.connect(retake_take)
         menu.addAction(act_retake)
-        
+
+        menu.addSeparator()
+
+        # 削除
+        act_del = QAction("テイクを削除    Del", self)
+        def delete_take():
+            if get_confirm_before_delete_take():
+                box = QMessageBox(self)
+                box.setWindowTitle("確認")
+                box.setText("このテイクを削除しますか？")
+                box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                box.setDefaultButton(QMessageBox.StandardButton.Yes)
+                if box.exec() != QMessageBox.StandardButton.Yes:
+                    return
+            if self._playing_take_id == take_id or self._loaded_take_id == take_id:
+                self._playback.release_file_lock()
+                self._playback_position_timer.stop()
+                self._playing_take_id = None
+                self._loaded_take_id = None
+                self._update_ui_state()
+                QTimer.singleShot(100, lambda: self._delete_take_after_unlock(take_id))
+            else:
+                if storage.delete_take(self._project.project_dir, take_id):
+                    self._project = storage.load_project(self._project.project_dir) or self._project
+                    self._refresh_take_list()
+                else:
+                    QMessageBox.warning(self, "エラー", "削除に失敗しました。ファイルが使用中かもしれません。")
+        act_del.triggered.connect(delete_take)
+        menu.addAction(act_del)
+
         menu.exec(self._take_list.mapToGlobal(pos))
 
     def _delete_take_and_start_recording(self, take_id: str) -> None:
@@ -1962,12 +2062,14 @@ class MainWindow(QMainWindow):
             return
         n = len(take_ids)
         msg = f"選択した{n}件のテイクを削除しますか？" if n > 1 else "このテイクを削除しますか？"
-        if QMessageBox.question(
-            self, "確認", msg,
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        ) != QMessageBox.StandardButton.Yes:
-            return
+        if get_confirm_before_delete_take():
+            box = QMessageBox(self)
+            box.setWindowTitle("確認")
+            box.setText(msg)
+            box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            box.setDefaultButton(QMessageBox.StandardButton.Yes)
+            if box.exec() != QMessageBox.StandardButton.Yes:
+                return
         # 削除前に再生中のファイルなら停止してロック解除
         needs_unlock = False
         for take_id in take_ids:

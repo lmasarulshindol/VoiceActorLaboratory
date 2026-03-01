@@ -172,3 +172,36 @@ def get_take_list_sort() -> str:
 
 def set_take_list_sort(value: str) -> None:
     get_settings().setValue("take_list_sort", value)
+
+
+def get_confirm_before_delete_take() -> bool:
+    """テイク削除前に確認メッセージを表示するか。True=表示する（既定）。"""
+    return get_settings().value("confirm_before_delete_take", True, type=bool)
+
+
+def set_confirm_before_delete_take(value: bool) -> None:
+    get_settings().setValue("confirm_before_delete_take", value)
+
+
+def get_last_session_project_path() -> str:
+    """前回開いていたプロジェクトフォルダのパス。未設定は空文字。"""
+    v = get_settings().value("last_session_project_path", "", type=str)
+    return v or ""
+
+
+def set_last_session_project_path(path: str | None) -> None:
+    """前回開いていたプロジェクトパスを保存する（起動時に復元用）。"""
+    get_settings().setValue("last_session_project_path", path or "")
+
+
+def get_main_window_splitter_sizes() -> list[int]:
+    """メインウィンドウのスプリッター（台本|テイク）のサイズ。未設定は空リスト。"""
+    v = get_settings().value("main_window_splitter_sizes", [])
+    if isinstance(v, list) and all(isinstance(x, int) for x in v):
+        return list(v)
+    return []
+
+
+def set_main_window_splitter_sizes(sizes: list[int]) -> None:
+    """スプリッターのサイズを保存する。"""
+    get_settings().setValue("main_window_splitter_sizes", sizes)

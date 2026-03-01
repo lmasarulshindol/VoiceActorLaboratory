@@ -43,10 +43,42 @@ class TestStorage:
     def test_save_scriptとloadで台本が往復する(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             storage.save_script(tmp, "台本テキスト")
-            assert (Path(tmp) / "script.txt").read_text(encoding="utf-8") == "台本テキスト"
+            script_file = storage.find_script_file(tmp)
+            assert script_file is not None
+            assert script_file.read_text(encoding="utf-8") == "台本テキスト"
             proj = storage.load_project(tmp)
             assert proj is not None
             assert proj.script_text == "台本テキスト"
+
+    def test_save_script_既存txtがあればtxtに保存(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "script.txt").write_text("旧台本", encoding="utf-8")
+            storage.save_script(tmp, "新台本")
+            assert (Path(tmp) / "script.txt").read_text(encoding="utf-8") == "新台本"
+            assert not (Path(tmp) / "script.md").exists()
+
+    def test_save_script_既存mdがあればmdに保存(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "script.md").write_text("旧台本", encoding="utf-8")
+            storage.save_script(tmp, "新台本")
+            assert (Path(tmp) / "script.md").read_text(encoding="utf-8") == "新台本"
+
+    def test_load_project_mdファイルを読める(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "takes").mkdir()
+            (Path(tmp) / "script.md").write_bytes("# シーン1\nセリフ".encode("utf-8"))
+            proj = storage.load_project(tmp)
+            assert proj is not None
+            assert proj.script_text == "# シーン1\nセリフ"
+
+    def test_load_project_mdが優先される(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "takes").mkdir()
+            (Path(tmp) / "script.txt").write_text("txtの内容", encoding="utf-8")
+            (Path(tmp) / "script.md").write_text("mdの内容", encoding="utf-8")
+            proj = storage.load_project(tmp)
+            assert proj is not None
+            assert proj.script_text == "mdの内容"
 
     def test_load_project_CP932のscriptを読める(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

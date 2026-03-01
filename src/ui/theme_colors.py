@@ -28,6 +28,10 @@ SCRIPT_TEXT_DARK = "#e2e8f0"
 TAKE_LIST_HIGHLIGHT_LIGHT = "#b4d0e8"
 TAKE_LIST_HIGHLIGHT_DARK = "#475569"
 
+# テイク一覧の選択中ハイライト
+TAKE_LIST_SELECTED_LIGHT = "#d4e8d4"
+TAKE_LIST_SELECTED_DARK = "#3b5249"
+
 
 def is_dark() -> bool:
     return get_theme() == "dark"

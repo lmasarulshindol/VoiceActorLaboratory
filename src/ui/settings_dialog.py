@@ -24,6 +24,8 @@ from src.ui.settings import (
     set_auto_play_after_record,
     get_export_use_friendly_names,
     set_export_use_friendly_names,
+    get_confirm_before_delete_take,
+    set_confirm_before_delete_take,
 )
 from src.ui.waveform_widget import WAVEFORM_DESIGN_NAMES
 
@@ -82,6 +84,15 @@ class SettingsDialog(QDialog):
         wave_layout.addRow("波形デザイン:", self._waveform_combo)
         layout.addWidget(wave_group)
 
+        # テイク削除
+        delete_group = QGroupBox("テイク削除")
+        delete_layout = QFormLayout(delete_group)
+        self._confirm_delete_check = QCheckBox("削除前に確認メッセージを表示する")
+        self._confirm_delete_check.setChecked(get_confirm_before_delete_take())
+        self._confirm_delete_check.setToolTip("オフにすると、テイク削除時に確認ダイアログを表示しません。再度有効にすると確認が表示されます。")
+        delete_layout.addRow("", self._confirm_delete_check)
+        layout.addWidget(delete_group)
+
         # エクスポート
         export_group = QGroupBox("エクスポート")
         export_layout = QFormLayout(export_group)
@@ -107,4 +118,5 @@ class SettingsDialog(QDialog):
         set_auto_play_after_record(self._auto_play_check.isChecked())
         set_waveform_design(self._waveform_combo.currentIndex())
         set_export_use_friendly_names(self._export_friendly_check.isChecked())
+        set_confirm_before_delete_take(self._confirm_delete_check.isChecked())
         self.accept()

@@ -134,4 +134,4 @@ def suggest_take_basename(
         m = pattern.match(base) or pattern.search(base)
         if m:
             max_n = max(max_n, int(m.group(1)))
-    return f"{prefix}_{max_n + 1:02d}"
+    return f"{prefix}_{max_n + 1:03d}"
