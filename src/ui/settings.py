@@ -1,5 +1,11 @@
 """
 アプリ設定の永続化。QSettings でテーマ・フォント・最近開いたプロジェクト等を保存する。
+
+設定キー一覧: theme, script_font_size, recent_projects, export_friendly_names,
+input_device_id, output_device_id, waveform_design, export_last_dir,
+last_project_dialog_dir, last_script_dialog_dir, main_window_geometry,
+main_window_splitter_sizes, recording_mode, auto_play_after_record,
+take_list_filter, take_list_sort, confirm_before_delete_take, last_session_project_path.
 """
 from PyQt6.QtCore import QSettings, QByteArray
 
@@ -12,8 +18,9 @@ def get_settings() -> QSettings:
 
 
 def get_theme() -> str:
-    """light / dark"""
-    return get_settings().value("theme", "light", type=str)
+    """light / dark。不正な値は light に正規化する。"""
+    v = get_settings().value("theme", "light", type=str)
+    return v if v in ("light", "dark") else "light"
 
 
 def set_theme(theme: str) -> None:
@@ -29,13 +36,20 @@ def set_script_font_size(size: int) -> None:
 
 
 def get_recent_projects() -> list[str]:
+    """最近開いたプロジェクトのパスリスト。QSettings の型揺れを正規化する。"""
     v = get_settings().value("recent_projects", [])
     if isinstance(v, str):
-        return [v] if v else []
-    return list(v) if v else []
+        return [v.strip()] if v.strip() else []
+    if not v:
+        return []
+    return [str(x).strip() for x in v if str(x).strip()]
 
 
 def add_recent_project(path: str, max_count: int = 5) -> None:
+    """最近開いたプロジェクトに追加。空パス・重複は入れない。"""
+    path = path.strip()
+    if not path:
+        return
     rec = get_recent_projects()
     if path in rec:
         rec.remove(path)
@@ -139,8 +153,9 @@ def set_main_window_geometry(data: bytes | None) -> None:
 
 
 def get_recording_mode() -> str:
-    """bulk（台本一括） / individual（セリフ個別）"""
-    return get_settings().value("recording_mode", "bulk", type=str)
+    """bulk（台本一括） / individual（セリフ個別）。不正値は bulk にフォールバック。"""
+    v = get_settings().value("recording_mode", "bulk", type=str)
+    return v if v in ("bulk", "individual") else "bulk"
 
 
 def set_recording_mode(mode: str) -> None:
@@ -157,8 +172,9 @@ def set_auto_play_after_record(value: bool) -> None:
 
 
 def get_take_list_filter() -> str:
-    """テイク一覧のフィルタ: all / favorite / adopted"""
-    return get_settings().value("take_list_filter", "all", type=str)
+    """テイク一覧のフィルタ: all / favorite / adopted。不正値は all にフォールバック。"""
+    v = get_settings().value("take_list_filter", "all", type=str)
+    return v if v in ("all", "favorite", "adopted") else "all"
 
 
 def set_take_list_filter(value: str) -> None:
@@ -166,8 +182,11 @@ def set_take_list_filter(value: str) -> None:
 
 
 def get_take_list_sort() -> str:
-    """テイク一覧の並び順: date_desc / date_asc / favorite_first / adopted_first"""
-    return get_settings().value("take_list_sort", "date_desc", type=str)
+    """テイク一覧の並び順: date_desc / date_asc / favorite_first / adopted_first。不正値は date_desc にフォールバック。"""
+    v = get_settings().value("take_list_sort", "date_desc", type=str)
+    if v in ("date_desc", "date_asc", "favorite_first", "adopted_first"):
+        return v
+    return "date_desc"
 
 
 def set_take_list_sort(value: str) -> None:
@@ -195,11 +214,14 @@ def set_last_session_project_path(path: str | None) -> None:
 
 
 def get_main_window_splitter_sizes() -> list[int]:
-    """メインウィンドウのスプリッター（台本|テイク）のサイズ。未設定は空リスト。"""
+    """メインウィンドウのスプリッター（台本|テイク）のサイズ。未設定は空リスト。要素は int に正規化。"""
     v = get_settings().value("main_window_splitter_sizes", [])
-    if isinstance(v, list) and all(isinstance(x, int) for x in v):
-        return list(v)
-    return []
+    if not isinstance(v, list):
+        return []
+    try:
+        return [int(x) for x in v]
+    except (TypeError, ValueError):
+        return []
 
 
 def set_main_window_splitter_sizes(sizes: list[int]) -> None:

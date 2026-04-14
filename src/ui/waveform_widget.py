@@ -26,6 +26,10 @@ WAVEFORM_DESIGN_NAMES = [
 NUM_DESIGNS = len(WAVEFORM_DESIGN_NAMES)
 
 
+# 波形表示用の最大サンプル数（約10分@44.1kHz）。これを超えると表示用に末尾を切り詰め、UIフリーズを防ぐ。
+_MAX_DISPLAY_SAMPLES = 44100 * 60 * 10
+
+
 def _downsample(samples: np.ndarray, width: int) -> np.ndarray:
     """幅 width 用にダウンサンプル（ブロック最大絶対値）。"""
     if len(samples) == 0 or width <= 0:
@@ -65,8 +69,11 @@ class WaveformWidget(QWidget):
         self._view_start_ratio: float = 0.0  # 表示開始位置 0.0〜1.0
 
     def set_samples(self, samples: np.ndarray) -> None:
-        """表示するサンプル（float32, -1〜1）を設定。"""
-        self._samples = np.asarray(samples, dtype=np.float32).flatten()
+        """表示するサンプル（float32, -1〜1）を設定。極端に長い場合は末尾のみ表示してUI負荷を抑える。"""
+        arr = np.asarray(samples, dtype=np.float32).flatten()
+        if len(arr) > _MAX_DISPLAY_SAMPLES:
+            arr = arr[-_MAX_DISPLAY_SAMPLES:]
+        self._samples = arr
         self.update()
 
     def set_position_seconds(self, sec: float | None) -> None:

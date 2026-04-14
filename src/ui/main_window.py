@@ -112,6 +112,7 @@ class ScriptEdit(QPlainTextEdit):
     def dropEvent(self, e) -> None:
         urls = e.mimeData().urls()
         if urls:
+            # 複数ファイルがドロップされた場合は先頭1つのみ扱う
             path = urls[0].toLocalFile()
             lower = path.lower()
             if (lower.endswith(".txt") or lower.endswith(".md")) and self._on_file_dropped:
@@ -128,6 +129,7 @@ class MainWindow(QMainWindow):
         self._recorder = Recorder()
         self._playback = Playback()
         self._playback.get_player().playbackStateChanged.connect(self._on_playback_state_changed)
+        self._playback.get_player().errorOccurred.connect(self._on_playback_error)
         self._recording_timer = QTimer(self)
         self._recording_timer.timeout.connect(self._on_recording_tick)
         self._playback_position_timer = QTimer(self)
@@ -150,7 +152,10 @@ class MainWindow(QMainWindow):
         self._setup_shortcuts()
         geo = get_main_window_geometry()
         if geo:
-            self.restoreGeometry(QByteArray(geo))
+            try:
+                self.restoreGeometry(QByteArray(geo))
+            except Exception:
+                pass
         self._update_ui_state()
         # 前回開いていたプロジェクトを復元（ウィンドウ表示後に実行）
         QTimer.singleShot(0, self._restore_last_session)
@@ -399,6 +404,7 @@ class MainWindow(QMainWindow):
         self._script_edit.cursorPositionChanged.connect(self._highlight_current_line)
         self._script_edit.cursorPositionChanged.connect(self._update_current_line_preview)
         self._script_edit.cursorPositionChanged.connect(self._update_status_script_position)
+        self._script_edit.textChanged.connect(self._update_window_title)
         script_layout.addWidget(self._script_container)
         
         # 個別モード時の現在行セリフプレビューエリア
@@ -517,6 +523,7 @@ class MainWindow(QMainWindow):
         self._record_toggle_btn.setObjectName("recordToggleBtn")
         self._record_toggle_btn.setFixedSize(50, 50)
         self._record_toggle_btn.setToolTip("録音開始 … 録音を開始（F9）")
+        self._record_toggle_btn.setAccessibleName("録音開始")
         self._record_toggle_btn.clicked.connect(self._on_record_toggle)
         rec_controls_row.addWidget(self._record_toggle_btn)
         
@@ -524,6 +531,7 @@ class MainWindow(QMainWindow):
         self._record_stop_btn.setObjectName("recordStopBtn")
         self._record_stop_btn.setFixedSize(50, 50)
         self._record_stop_btn.setToolTip("録音停止 … 録音を止めてテイクとして保存（F10）")
+        self._record_stop_btn.setAccessibleName("録音停止")
         self._record_stop_btn.clicked.connect(self._on_record_stop)
         self._record_stop_btn.setEnabled(False)
         rec_controls_row.addWidget(self._record_stop_btn)
@@ -739,7 +747,10 @@ class MainWindow(QMainWindow):
                 d = sd.query_devices(i)
                 max_in = getattr(d, "max_input_channels", 0) or (d.get("max_input_channels", 0) if isinstance(d, dict) else 0)
                 if max_in > 0:
-                    name = getattr(d, "name", d.get("name", str(d)) if isinstance(d, dict) else str(d))
+                    if isinstance(d, dict):
+                        name = d.get("name", str(d))
+                    else:
+                        name = getattr(d, "name", str(d))
                     self._input_device_combo.addItem(name, i)
             saved = get_input_device_id()
             idx = self._input_device_combo.findData(saved)
@@ -812,7 +823,8 @@ class MainWindow(QMainWindow):
     def _on_output_device_changed(self, index: int) -> None:
         device = self._output_device_combo.itemData(index)
         if device is not None:
-            set_output_device_id(self._audio_device_id_string(device))
+            id_str = self._audio_device_id_string(device)
+            set_output_device_id(id_str if id_str else None)
             self._playback.set_output_device(device)
         else:
             set_output_device_id(None)
@@ -831,7 +843,9 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:
         """終了時に未保存台本を確認し、ウィンドウ位置・サイズを保存する。"""
-        if self._project.has_project_dir() and self._script_edit.toPlainText() != self._project.script_text:
+        editor_text = self._script_edit.toPlainText().replace("\r\n", "\n").replace("\r", "\n")
+        project_text = (self._project.script_text or "").replace("\r\n", "\n").replace("\r", "\n")
+        if self._project.has_project_dir() and editor_text != project_text:
             box = QMessageBox(self)
             box.setWindowTitle("台本の保存")
             box.setText("台本を保存していません。保存しますか？")
@@ -850,7 +864,7 @@ class MainWindow(QMainWindow):
                 return
             if ret == QMessageBox.StandardButton.Save:
                 storage.save_script(self._project.project_dir, self._script_edit.toPlainText())
-                self._project.script_text = self._script_edit.toPlainText()
+                self._project.script_text = self._script_edit.toPlainText().replace("\r\n", "\n").replace("\r", "\n")
         set_main_window_geometry(bytes(self.saveGeometry()))
         if self._project.has_project_dir():
             set_last_session_project_path(self._project.project_dir)
@@ -1337,6 +1351,7 @@ class MainWindow(QMainWindow):
             return
         proj = storage.load_project(path)
         if proj is None:
+            QMessageBox.warning(self, "プロジェクトを開けませんでした", "前回開いていたプロジェクトを読み込めませんでした。")
             return
         self._project = proj
         self._reset_playback_ui()
@@ -1367,6 +1382,18 @@ class MainWindow(QMainWindow):
     def _switch_to_main_view(self) -> None:
         """プロジェクト作成/打開後、メイン（台本・テイク）画面に切り替える。"""
         self._stacked.setCurrentIndex(1)
+        self._update_window_title()
+
+    def _update_window_title(self) -> None:
+        """ウィンドウタイトルにプロジェクト名と未保存表示を反映する。"""
+        base = "Voice Actor Laboratory"
+        if self._project.has_project_dir():
+            base += " - " + Path(self._project.project_dir).name
+            editor_text = self._script_edit.toPlainText().replace("\r\n", "\n").replace("\r", "\n")
+            project_text = (self._project.script_text or "").replace("\r\n", "\n").replace("\r", "\n")
+            if editor_text != project_text:
+                base += " *"
+        self.setWindowTitle(base)
 
     def _on_restart_app(self) -> None:
         """ヘルプ「アプリを再起動」: 新しいプロセスを起動してから終了する。"""
@@ -1380,7 +1407,8 @@ class MainWindow(QMainWindow):
             return
         argv = [sys.executable] + sys.argv
         try:
-            subprocess.Popen(argv, cwd=Path.cwd())
+            cwd = Path(__file__).resolve().parent.parent.parent
+            subprocess.Popen(argv, cwd=cwd)
         except Exception as e:
             QMessageBox.warning(self, "再起動エラー", f"再起動に失敗しました: {e}")
             return
@@ -1403,6 +1431,7 @@ class MainWindow(QMainWindow):
             "2. 台本 … 自動で例が入ります。そのまま録音してOK\n"
             "3. 録音 … 「録音開始」（F9）→「録音停止」で1テイク追加\n"
             "4. 再生 … テイク一覧でダブルクリックで再生\n\n"
+            "※ 録音モード「台本一括」は見出しごとに連番、「セリフ個別」はカーソル行のセリフをファイル名に使います。\n"
             "※ 既存のプロジェクトは「開く」または「最近開いたプロジェクト」から。"
         )
         QMessageBox.information(self, "使い方", text)
@@ -1423,7 +1452,9 @@ class MainWindow(QMainWindow):
             "Ctrl+← … 前のテイクに移動\n\n"
             "【編集】\n"
             "Ctrl+F … 検索\n"
-            "Ctrl+H … 置換"
+            "Ctrl+H … 置換\n\n"
+            "【その他】\n"
+            "Esc … ダイアログを閉じる"
         )
         dlg = QDialog(self)
         dlg.setWindowTitle("キーボードショートカット")
@@ -1445,9 +1476,13 @@ class MainWindow(QMainWindow):
         if not path:
             return
         set_last_project_dialog_dir(path)
-        self._project = storage.create_project(path)
+        try:
+            self._project = storage.create_project(path)
+            storage.save_script(path, DEFAULT_SCRIPT_TEMPLATE)
+        except OSError as e:
+            QMessageBox.warning(self, "エラー", f"プロジェクトフォルダを作成できませんでした: {e}")
+            return
         self._reset_playback_ui()
-        storage.save_script(path, DEFAULT_SCRIPT_TEMPLATE)
         self._project.script_text = DEFAULT_SCRIPT_TEMPLATE
         self._script_edit.setPlainText(DEFAULT_SCRIPT_TEMPLATE)
         add_recent_project(path)
@@ -1483,6 +1518,9 @@ class MainWindow(QMainWindow):
         """指定パスのテキストを台本として読み込む。ドロップ・メニュー「台本を開く」の共通処理。UTF-8/CP932等にフォールバック。"""
         try:
             text = storage.decode_script_bytes(Path(path).read_bytes())
+        except UnicodeDecodeError as e:
+            QMessageBox.warning(self, "エラー", "台本ファイルの文字コードを認識できませんでした。UTF-8 または CP932 で保存し直してください。")
+            return
         except Exception as e:
             QMessageBox.warning(self, "エラー", f"台本を読み込めませんでした: {e}")
             return
@@ -1531,6 +1569,7 @@ class MainWindow(QMainWindow):
         if self._project.has_project_dir():
             storage.save_script(self._project.project_dir, text)
             self._project.script_text = text
+            self._update_window_title()
             self.statusBar().showMessage("台本を保存しました。")
         else:
             QMessageBox.information(
@@ -1544,6 +1583,10 @@ class MainWindow(QMainWindow):
         if not self._project.has_project_dir():
             QMessageBox.warning(self, "録音", "先にプロジェクトを新規作成するか開いてください。")
             return
+        editor_text = self._script_edit.toPlainText().replace("\r\n", "\n").replace("\r", "\n")
+        project_text = (self._project.script_text or "").replace("\r\n", "\n").replace("\r", "\n")
+        if editor_text != project_text and self.statusBar():
+            self.statusBar().showMessage("台本に未保存の変更があります。必要に応じて保存してから録音してください。", 5000)
         try:
             if not self._recorder.is_recording:
                 self._recorder.start()
@@ -1583,14 +1626,18 @@ class MainWindow(QMainWindow):
                         memo = line_text
                     script_line_number = get_current_line_number(script_text, cursor_pos)
 
-                take = storage.add_take_from_file(
-                    self._project.project_dir,
-                    tmp,
-                    memo=memo,
-                    favorite=False,
-                    preferred_basename=preferred_basename,
-                    script_line_number=script_line_number,
-                )
+                try:
+                    take = storage.add_take_from_file(
+                        self._project.project_dir,
+                        tmp,
+                        memo=memo,
+                        favorite=False,
+                        preferred_basename=preferred_basename,
+                        script_line_number=script_line_number,
+                    )
+                except OSError as e:
+                    QMessageBox.warning(self, "録音", f"テイクの保存に失敗しました: {e}")
+                    return
                 self._project.add_take(take)
                 self._refresh_take_list()
                 take_added = True
@@ -1843,6 +1890,12 @@ class MainWindow(QMainWindow):
             self._playback_waveform.set_position_seconds(None)
         self._update_ui_state()
 
+    def _on_playback_error(self, error: object, error_string: str = "") -> None:
+        """再生エラー時にステータスバーで通知する。"""
+        msg = error_string or str(error) or "再生に失敗しました"
+        if self.statusBar():
+            self.statusBar().showMessage(f"再生エラー: {msg}", 8000)
+
     def _on_playback_position_tick(self) -> None:
         """再生位置を波形に反映し、時刻ラベルを更新。"""
         pos_ms = max(0, self._playback.get_player().position())
@@ -2008,7 +2061,7 @@ class MainWindow(QMainWindow):
                 box.setWindowTitle("確認")
                 box.setText("このテイクを削除しますか？")
                 box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-                box.setDefaultButton(QMessageBox.StandardButton.Yes)
+                box.setDefaultButton(QMessageBox.StandardButton.No)
                 if box.exec() != QMessageBox.StandardButton.Yes:
                     return
             if self._playing_take_id == take_id or self._loaded_take_id == take_id:
@@ -2067,7 +2120,7 @@ class MainWindow(QMainWindow):
             box.setWindowTitle("確認")
             box.setText(msg)
             box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-            box.setDefaultButton(QMessageBox.StandardButton.Yes)
+            box.setDefaultButton(QMessageBox.StandardButton.No)
             if box.exec() != QMessageBox.StandardButton.Yes:
                 return
         # 削除前に再生中のファイルなら停止してロック解除
@@ -2186,10 +2239,16 @@ class MainWindow(QMainWindow):
         if not dest:
             return
         set_export_last_dir(dest)
-        paths = storage.export_takes(
-            self._project.project_dir,
-            take_ids,
-            dest,
-            use_friendly_names=friendly.isChecked(),
-        )
-        QMessageBox.information(self, "エクスポート", f"{len(paths)} 件をエクスポートしました。")
+        try:
+            paths = storage.export_takes(
+                self._project.project_dir,
+                take_ids,
+                dest,
+                use_friendly_names=friendly.isChecked(),
+            )
+        except OSError as e:
+            QMessageBox.warning(self, "エクスポート", str(e))
+            return
+        dest_path = str(Path(paths[0]).parent) if paths else ""
+        msg = f"{len(paths)} 件をエクスポートしました。" + (f"\n保存先: {dest_path}" if dest_path else "")
+        QMessageBox.information(self, "エクスポート", msg)

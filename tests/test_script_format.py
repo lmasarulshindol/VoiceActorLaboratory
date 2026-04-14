@@ -35,6 +35,13 @@ class TestGetCurrentSection:
         t = "# 親\n## 子\n### 孫\n本文"
         assert get_current_section(t, 14) == "孫"
 
+    def test_カーソル0で見出しなしは空(self) -> None:
+        assert get_current_section("abc", 0) == ""
+
+    def test_カーソルが文末超でクランプ(self) -> None:
+        t = "# シーン\n行"
+        assert get_current_section(t, 999) == "シーン"
+
 
 class TestGetCurrentLineText:
     def test_見出し行では空(self) -> None:
@@ -87,6 +94,10 @@ class TestGetCurrentLineNumber:
         assert get_current_line_number(t, 2) == 2
         assert get_current_line_number(t, 6) == 3
 
+    def test_カーソルが文末超では最終行(self) -> None:
+        t = "1\n2\n3"
+        assert get_current_line_number(t, 99) == 3
+
 
 class TestSanitizeForFilename:
     def test_空白はアンダースコア(self) -> None:
@@ -103,16 +114,23 @@ class TestSanitizeForFilename:
     def test_長さ制限(self) -> None:
         assert len(sanitize_for_filename("a" * 200, max_length=10)) <= 10
 
+    def test_Unicode正規化NFKC(self) -> None:
+        assert sanitize_for_filename("ｶﾀｶﾅ") == "カタカナ"
+
 
 class TestSuggestTakeBasename:
     def test_見出しと連番(self) -> None:
         script = "# 朝の挨拶\nおはよう\n"
-        assert suggest_take_basename(script, 10, []) == "朝の挨拶_01"
-        assert suggest_take_basename(script, 10, ["朝の挨拶_01.wav"]) == "朝の挨拶_02"
+        assert suggest_take_basename(script, 10, []) == "朝の挨拶_001"
+        assert suggest_take_basename(script, 10, ["朝の挨拶_001.wav"]) == "朝の挨拶_002"
 
     def test_見出しなしはtake連番(self) -> None:
-        assert suggest_take_basename("本文のみ", 0, []) == "take_01"
-        assert suggest_take_basename("本文のみ", 0, ["take_01.wav"]) == "take_02"
+        assert suggest_take_basename("本文のみ", 0, []) == "take_001"
+        assert suggest_take_basename("本文のみ", 0, ["take_001.wav"]) == "take_002"
+
+    def test_individualでline_textが空ならline_001(self) -> None:
+        assert suggest_take_basename("# 見出しのみ", 0, [], mode="individual") == "line_001"
+        assert suggest_take_basename("", 0, [], mode="individual") == "line_001"
 
 
 class TestDefaultScriptTemplate:

@@ -3,6 +3,9 @@
 1プロジェクト = 1フォルダ（台本テキスト + takes/ に WAV + メタ JSON）。
 """
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 import uuid
 from pathlib import Path
 from datetime import datetime
@@ -91,8 +94,10 @@ def load_project(project_dir: str) -> Project | None:
                     script_line_number=t.get("script_line_number"),
                 )
             )
+    # script が無い場合は script_path を空にして不整合を防ぐ
+    script_path = str(script_file) if (script_file and script_file.exists()) else ""
     return Project(
-        script_path=str(script_file) if script_file.exists() else "",
+        script_path=script_path,
         script_text=script_text,
         takes=takes,
         project_dir=project_dir,
@@ -100,9 +105,13 @@ def load_project(project_dir: str) -> Project | None:
 
 
 def save_script(project_dir: str, text: str, *, use_md: bool | None = None) -> None:
-    """台本テキストを保存する。既存ファイルの拡張子を維持し、なければ use_md に従う（デフォルトは .md）。"""
+    """台本テキストを保存する。既存ファイルの拡張子を維持し、なければ use_md に従う（デフォルトは .md）。
+    フォルダを新規作成した場合は takes/ と project_meta も用意し、後続の add_take と不整合にならないようにする。"""
     path = Path(project_dir)
     path.mkdir(parents=True, exist_ok=True)
+    (path / TAKES_DIR).mkdir(exist_ok=True)
+    if not _meta_path(project_dir).exists():
+        _save_meta(project_dir, Project(project_dir=project_dir))
     existing = find_script_file(project_dir)
     if existing is not None:
         existing.write_text(text, encoding="utf-8")
@@ -266,7 +275,10 @@ def export_takes(
         else:
             out_name = t.wav_filename
         out_path = dest / out_name
-        shutil.copy2(src, out_path)
+        try:
+            shutil.copy2(src, out_path)
+        except OSError as e:
+            raise OSError(f"エクスポート先へのコピーに失敗しました: {out_path}\n{e}") from e
         copied.append(str(out_path))
     return copied
 
@@ -281,7 +293,8 @@ def _load_meta(project_dir: str) -> dict | None:
         return None
     try:
         return json.loads(p.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError) as e:
+        logger.debug("project_meta の読み込みに失敗しました: %s (%s)", project_dir, e)
         return None
 
 

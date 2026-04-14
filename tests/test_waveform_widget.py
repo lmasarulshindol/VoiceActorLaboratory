@@ -72,3 +72,19 @@ class TestWaveformWidget:
         QTest.mouseClick(w, Qt.MouseButton.LeftButton, pos=QPoint(100, 36))
         app.processEvents()
         assert len(received) == 0
+
+    def test_set_samples_空配列でダウンサンプル結果が空(self, app):
+        from src.ui.waveform_widget import WaveformWidget, _downsample
+        arr = np.array([], dtype=np.float32)
+        out = _downsample(arr, 100)
+        assert len(out) == 0
+
+    def test_set_zoom_ratio_クランプ(self, app):
+        from src.ui.waveform_widget import WaveformWidget
+        w = WaveformWidget()
+        w.set_zoom_ratio(0.5)
+        assert w.get_zoom_ratio() == 1.0
+        w.set_zoom_ratio(25.0)
+        assert w.get_zoom_ratio() == 20.0
+        w.set_zoom_ratio(2.0)
+        assert w.get_zoom_ratio() == 2.0
