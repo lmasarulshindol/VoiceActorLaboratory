@@ -21,6 +21,13 @@ class TestDecodeScriptBytes:
         data = "日本語".encode("cp932")
         assert storage.decode_script_bytes(data) == "日本語"
 
+    def test_全エンコーディング失敗で例外(self) -> None:
+        import pytest
+        # UTF-8/UTF-8-sig/CP932 のいずれでもデコードできないバイト列（不完全なマルチバイト等）
+        data = bytes([0x81, 0x00, 0xFE, 0xFF])
+        with pytest.raises((UnicodeDecodeError, LookupError)):
+            storage.decode_script_bytes(data)
+
 
 class TestStorage:
     """storage のテスト。"""
@@ -123,6 +130,70 @@ class TestStorage:
             assert len(paths) == 1
             assert Path(paths[0]).exists()
             assert Path(paths[0]).parent == dest
+
+    def test_load_project_scriptが無いフォルダ_takesのみ(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "takes").mkdir()
+            (Path(tmp) / "project_meta.json").write_text('{"takes":[]}', encoding="utf-8")
+            proj = storage.load_project(tmp)
+            assert proj is not None
+            assert proj.script_text == ""
+            assert proj.script_path == ""
+            assert proj.takes == []
+
+    def test_save_script_use_md_Falseでtxtに保存(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            storage.save_script(tmp, "台本", use_md=False)
+            assert (Path(tmp) / "script.txt").read_text(encoding="utf-8") == "台本"
+            assert not (Path(tmp) / "script.md").exists()
+
+    def test_update_take_meta_adoptedで他がFalse(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            wav = Path(tmp) / "d.wav"
+            wav.write_bytes(b"RIFF\x00\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x44\xac\x00\x00\x88X\x01\x00\x02\x00\x10\x00data\x00\x00\x00\x00")
+            t1 = storage.add_take_from_file(tmp, str(wav))
+            t2 = storage.add_take_from_file(tmp, str(wav))
+            storage.update_take_meta(tmp, t1.id, adopted=True)
+            proj = storage.load_project(tmp)
+            assert proj is not None
+            adopted = [t for t in proj.takes if t.adopted]
+            assert len(adopted) == 1 and adopted[0].id == t1.id
+            storage.update_take_meta(tmp, t2.id, adopted=True)
+            proj2 = storage.load_project(tmp)
+            adopted2 = [t for t in proj2.takes if t.adopted]
+            assert len(adopted2) == 1 and adopted2[0].id == t2.id
+
+    def test_list_take_wav_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "takes").mkdir()
+            proj = storage.create_project(tmp)
+            wav = Path(tmp) / "d.wav"
+            wav.write_bytes(b"RIFF\x00\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x44\xac\x00\x00\x88X\x01\x00\x02\x00\x10\x00data\x00\x00\x00\x00")
+            take = storage.add_take_from_file(tmp, str(wav))
+            pairs = storage.list_take_wav_paths(tmp)
+            assert len(pairs) == 1
+            assert pairs[0][0] == take.id
+            assert pairs[0][1] == storage.get_take_wav_path(tmp, take.wav_filename)
+
+    def test_load_project_壊れたmetaでtakesは空(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "takes").mkdir()
+            (Path(tmp) / "project_meta.json").write_text("{ invalid json }", encoding="utf-8")
+            proj = storage.load_project(tmp)
+            assert proj is not None
+            assert proj.takes == []
+
+    def test_add_take_from_file_preferred_basename重複でuuid付き(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            storage.create_project(tmp)
+            wav = Path(tmp) / "d.wav"
+            wav.write_bytes(b"RIFF\x00\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x44\xac\x00\x00\x88X\x01\x00\x02\x00\x10\x00data\x00\x00\x00\x00")
+            t1 = storage.add_take_from_file(tmp, str(wav), preferred_basename="scene")
+            t2 = storage.add_take_from_file(tmp, str(wav), preferred_basename="scene")
+            assert t1.wav_filename == "scene.wav" or t1.wav_filename.startswith("scene_")
+            assert t2.wav_filename != t1.wav_filename
+            assert (Path(tmp) / "takes" / t1.wav_filename).exists()
+            assert (Path(tmp) / "takes" / t2.wav_filename).exists()
 
     def test_load_project_存在しないパスはNone(self) -> None:
         assert storage.load_project("/nonexistent/path/12345") is None

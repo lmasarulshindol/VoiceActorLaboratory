@@ -87,3 +87,10 @@ class TestProject:
         assert t1.adopted is False
         assert t2.adopted is True
         assert p.get_adopted_take() is t2
+
+    def test_update_take_adopted_存在しないtake_idはFalse(self) -> None:
+        p = Project()
+        t = TakeInfo(id="1", wav_filename="a.wav")
+        p.add_take(t)
+        assert p.update_take_adopted("nonexistent", True) is False
+        assert p.get_take("nonexistent") is None

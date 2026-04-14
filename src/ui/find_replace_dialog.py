@@ -26,6 +26,8 @@ class FindReplaceDialog(QDialog):
         self._replace_mode = replace_mode
         self.setWindowTitle("置換" if replace_mode else "検索")
         self.setMinimumWidth(420)
+        if script_edit is None:
+            self.setWindowTitle(self.windowTitle() + " （台本が利用できません）")
 
         layout = QVBoxLayout(self)
         # 検索
@@ -87,7 +89,7 @@ class FindReplaceDialog(QDialog):
         self.setWindowTitle("置換" if replace_mode else "検索")
 
     def _on_find_text_changed(self, text: str) -> None:
-        enabled = bool(text.strip())
+        enabled = bool(self._script_edit and text.strip())
         self._find_next_btn.setEnabled(enabled)
         if self._replace_btn is not None:
             self._replace_btn.setEnabled(enabled)

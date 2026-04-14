@@ -14,8 +14,9 @@ def get_current_section(script_text: str, cursor_position: int) -> str:
     """
     カーソル位置に対応する「現在のシーン名」を取得する。
     カーソルを含む行まで含めた範囲で、直近の行頭 "# " / "## " / "### " の見出しを返す。
-    見出しがない場合は空文字列。
+    見出しがない場合は空文字列。cursor_position が範囲外の場合は境界にクランプする。
     """
+    cursor_position = max(0, min(cursor_position, len(script_text)))
     before = script_text[:cursor_position]
     line_start = before.rfind("\n") + 1
     rest_of_line = script_text[cursor_position:].split("\n")[0] if cursor_position > line_start else ""
@@ -40,7 +41,9 @@ def get_current_line_text(script_text: str, cursor_position: int) -> str:
     """
     カーソル位置の行のテキストを取得する（見出しや空行を除く）。
     VoiceActorStudioのロジックを参考に、セリフ部分のみを抽出。
+    cursor_position が範囲外の場合は境界にクランプする。
     """
+    cursor_position = max(0, min(cursor_position, len(script_text)))
     lines = script_text.splitlines()
     # カーソル位置がどの行にあるか特定
     pos = 0
@@ -127,13 +130,19 @@ def suggest_take_basename(
             section = get_current_section(script_text, cursor_position)
             prefix = sanitize_for_filename(section) if section else "take"
 
-    # 既存の "prefix_NN.wav" または "prefix_NN_xxxx.wav" 形式をカウント
+    # 既存の "prefix_NN.wav" または "prefix_NN_xxxx.wav" 形式をカウント（.wav のファイル名のみ対象）
+    wav_bases = []
+    for f in existing_wav_filenames:
+        if not isinstance(f, str) or not f.strip() or "/" in f or "\\" in f:
+            continue
+        fn = f.strip()
+        if fn.lower().endswith(".wav"):
+            wav_bases.append(fn[:-4])
+        else:
+            wav_bases.append(fn)
     pattern = re.compile(re.escape(prefix) + r"_(\d+)", re.IGNORECASE)
     max_n = 0
-    for f in existing_wav_filenames:
-        base = f
-        if base.lower().endswith(".wav"):
-            base = base[:-4]
+    for base in wav_bases:
         m = pattern.match(base) or pattern.search(base)
         if m:
             max_n = max(max_n, int(m.group(1)))

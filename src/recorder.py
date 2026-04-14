@@ -2,7 +2,10 @@
 録音開始/停止/一時停止、バッファ→WAV 保存。
 sounddevice でマイク入力、soundfile で 16bit 44.1kHz WAV 保存。
 """
+import logging
 import threading
+
+logger = logging.getLogger(__name__)
 from pathlib import Path
 import numpy as np
 import sounddevice as sd
@@ -11,6 +14,10 @@ import soundfile as sf
 SAMPLE_RATE = 44100
 CHANNELS = 1
 DTYPE = "int16"
+
+# 最大録音時間（秒）。これを超えるとバッファ追加を止めてメモリ枯渇を防ぐ（約3時間）
+MAX_RECORDING_SECONDS = 3 * 3600
+_MAX_SAMPLES = int(SAMPLE_RATE * MAX_RECORDING_SECONDS)
 
 
 class Recorder:
@@ -47,7 +54,9 @@ class Recorder:
     def _callback(self, indata: np.ndarray, _frames: int, _time: object, _status: sd.CallbackFlags) -> None:
         with self._lock:
             if self._is_recording and not self._is_paused:
-                self._buffer.append(indata.copy())
+                total = sum(c.shape[0] for c in self._buffer) + indata.shape[0]
+                if total <= _MAX_SAMPLES:
+                    self._buffer.append(indata.copy())
 
     def _start_stream(self) -> None:
         """マイクストリームを開始する。"""
@@ -132,7 +141,7 @@ class Recorder:
             sf.write(wav_path, data, SAMPLE_RATE, subtype="PCM_16")
             return True
         except Exception as e:
-            # ファイル書き込みエラーをログに記録（必要に応じて）
+            logger.exception("WAV 保存に失敗しました: %s", wav_path)
             return False
 
     def stop_and_save(self, wav_path: str) -> bool:

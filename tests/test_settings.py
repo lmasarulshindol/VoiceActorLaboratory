@@ -49,3 +49,37 @@ class TestMainWindowGeometry:
         set_main_window_geometry(data)
         temp_settings.sync()
         assert get_main_window_geometry() == data
+
+
+class TestSettingsFallback:
+    def test_get_theme_不正値はlight(self, temp_settings) -> None:
+        from src.ui.settings import get_theme, set_theme, get_settings
+        get_settings().setValue("theme", "invalid")
+        temp_settings.sync()
+        assert get_theme() == "light"
+        set_theme("dark")
+        assert get_theme() == "dark"
+
+    def test_get_recording_mode_不正値はbulk(self, temp_settings) -> None:
+        from src.ui.settings import get_recording_mode, set_recording_mode, get_settings
+        get_settings().setValue("recording_mode", "unknown")
+        temp_settings.sync()
+        assert get_recording_mode() == "bulk"
+
+    def test_get_take_list_filter_不正値はall(self, temp_settings) -> None:
+        from src.ui.settings import get_take_list_filter, get_settings
+        get_settings().setValue("take_list_filter", "invalid")
+        temp_settings.sync()
+        assert get_take_list_filter() == "all"
+
+    def test_get_main_window_splitter_sizes_1要素や3要素やfloatを正規化(self, temp_settings) -> None:
+        from src.ui.settings import get_main_window_splitter_sizes, set_main_window_splitter_sizes, get_settings
+        get_settings().setValue("main_window_splitter_sizes", [400])
+        temp_settings.sync()
+        sizes = get_main_window_splitter_sizes()
+        assert sizes == [400]
+        get_settings().setValue("main_window_splitter_sizes", [300, 500, 100])
+        temp_settings.sync()
+        sizes = get_main_window_splitter_sizes()
+        assert len(sizes) == 3
+        assert all(isinstance(x, int) for x in sizes)

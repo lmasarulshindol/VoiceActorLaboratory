@@ -17,7 +17,7 @@ class LineNumberArea(QWidget):
 
     def sizeHint(self) -> QSize:
         digits = 1
-        count = max(1, self._script_edit.document().blockCount())
+        count = min(max(1, self._script_edit.document().blockCount()), 99999)
         while count >= 10:
             digits += 1
             count //= 10
