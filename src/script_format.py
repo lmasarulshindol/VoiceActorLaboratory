@@ -104,25 +104,28 @@ def suggest_take_basename(
     cursor_position: int,
     existing_wav_filenames: list[str],
     mode: str = "bulk",
+    line_text: str | None = None,
 ) -> str:
     """
     台本とカーソル位置・既存テイクのファイル名から、今回のテイク用ベース名を提案する。
-    返り値は拡張子なし（例: "朝の挨拶_01"）。既存がなければ "シーン名_01" または "take_01"。
+    返り値は拡張子なし（例: "朝の挨拶_01"）。既存がなければ "セリフ名_01" または "take_01"。
+    line_text を渡すと再計算せずそれを利用する。
     """
-    if mode == "individual":
-        line_text = get_current_line_text(script_text, cursor_position)
-        if line_text:
-            # VoiceActorStudioのロジックを参考: セリフの一部をファイル名に利用（最大20文字）
-            # ファイル名に使えない文字を除去し、空白もアンダースコアに変換
-            safe_text = re.sub(r'[\\/:*?"<>|]', '', line_text)
-            safe_text = safe_text.strip()[:20]
-            safe_text = re.sub(r'\s+', '_', safe_text)
-            prefix = sanitize_for_filename(safe_text, max_length=20) if safe_text else "line"
-        else:
-            prefix = "line"
+    resolved_line_text = line_text if line_text is not None else get_current_line_text(script_text, cursor_position)
+    if resolved_line_text:
+        safe_text = re.sub(r'[\\/:*?"<>|]', '', resolved_line_text)
+        safe_text = safe_text.strip()[:20]
+        safe_text = re.sub(r'\s+', '_', safe_text)
+        prefix = sanitize_for_filename(safe_text, max_length=20) if safe_text else None
     else:
-        section = get_current_section(script_text, cursor_position)
-        prefix = sanitize_for_filename(section) if section else "take"
+        prefix = None
+
+    if not prefix:
+        if mode == "individual":
+            prefix = "line"
+        else:
+            section = get_current_section(script_text, cursor_position)
+            prefix = sanitize_for_filename(section) if section else "take"
 
     # 既存の "prefix_NN.wav" または "prefix_NN_xxxx.wav" 形式をカウント
     pattern = re.compile(re.escape(prefix) + r"_(\d+)", re.IGNORECASE)

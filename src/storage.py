@@ -89,6 +89,7 @@ def load_project(project_dir: str) -> Project | None:
                     created_at=t.get("created_at", ""),
                     adopted=t.get("adopted", False),
                     script_line_number=t.get("script_line_number"),
+                    script_line_text=t.get("script_line_text", ""),
                 )
             )
     return Project(
@@ -118,6 +119,7 @@ def add_take_from_file(
     favorite: bool = False,
     preferred_basename: str | None = None,
     script_line_number: int | None = None,
+    script_line_text: str = "",
 ) -> TakeInfo:
     """
     既存の WAV ファイルをプロジェクトの takes/ にコピーし、メタを追加して TakeInfo を返す。
@@ -149,6 +151,7 @@ def add_take_from_file(
         created_at=created_at,
         adopted=False,
         script_line_number=script_line_number,
+        script_line_text=script_line_text,
     )
     proj = load_project(project_dir)
     if proj is None:
@@ -296,6 +299,7 @@ def _save_meta(project_dir: str, proj: Project) -> None:
                 "created_at": t.created_at,
                 "adopted": t.adopted,
                 "script_line_number": t.script_line_number,
+                "script_line_text": t.script_line_text,
             }
             for t in proj.takes
         ],

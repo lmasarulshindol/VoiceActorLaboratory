@@ -841,9 +841,9 @@ class MainWindow(QMainWindow):
                 | QMessageBox.StandardButton.Cancel
             )
             box.setDefaultButton(QMessageBox.StandardButton.Save)
-            box.setButtonText(QMessageBox.StandardButton.Save, "保存する")
-            box.setButtonText(QMessageBox.StandardButton.Discard, "破棄して終了")
-            box.setButtonText(QMessageBox.StandardButton.Cancel, "キャンセル")
+            box.button(QMessageBox.StandardButton.Save).setText("保存する")
+            box.button(QMessageBox.StandardButton.Discard).setText("破棄して終了")
+            box.button(QMessageBox.StandardButton.Cancel).setText("キャンセル")
             ret = box.exec()
             if ret == QMessageBox.StandardButton.Cancel:
                 event.ignore()
@@ -1063,10 +1063,13 @@ class MainWindow(QMainWindow):
             adopted = "  [採用]" if t.adopted else ""
             dur_sec = storage.get_wav_duration_seconds(self._project.project_dir, t.wav_filename)
             dur_str = f"  {self._format_duration(dur_sec)}" if dur_sec > 0 else ""
-            line = f"{new_badge}{fav}{t.display_name(i)}{dur_str}  {t.memo}{adopted}"
+            memo_str = f"  {t.memo}" if t.memo else ""
+            line = f"{new_badge}{fav}{t.display_name(i)}{dur_str}{memo_str}{adopted}"
             item = QListWidgetItem(line)
             item.setData(Qt.ItemDataRole.UserRole, t.id)
             tooltip_parts = []
+            if t.script_line_text:
+                tooltip_parts.append(f"セリフ: {t.script_line_text}")
             if t.memo:
                 tooltip_parts.append(f"メモ: {t.memo}")
             tooltip_parts.append(f"ファイル: {t.wav_filename}")
@@ -1573,23 +1576,18 @@ class MainWindow(QMainWindow):
                 existing = [t.wav_filename for t in self._project.takes]
                 
                 mode = get_recording_mode()
-                preferred_basename = suggest_take_basename(script_text, cursor_pos, existing, mode=mode)
-                
-                memo = ""
-                script_line_number = None
-                if mode == "individual":
-                    line_text = get_current_line_text(script_text, cursor_pos)
-                    if line_text:
-                        memo = line_text
-                    script_line_number = get_current_line_number(script_text, cursor_pos)
+                line_text = get_current_line_text(script_text, cursor_pos)
+                script_line_number = get_current_line_number(script_text, cursor_pos) if line_text else None
+                preferred_basename = suggest_take_basename(script_text, cursor_pos, existing, mode=mode, line_text=line_text)
 
                 take = storage.add_take_from_file(
                     self._project.project_dir,
                     tmp,
-                    memo=memo,
+                    memo="",
                     favorite=False,
                     preferred_basename=preferred_basename,
                     script_line_number=script_line_number,
+                    script_line_text=line_text,
                 )
                 self._project.add_take(take)
                 self._refresh_take_list()

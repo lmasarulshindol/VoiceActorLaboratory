@@ -17,16 +17,24 @@ class TakeInfo:
     created_at: str = ""
     adopted: bool = False
     script_line_number: int | None = None  # 台本の何行目に対応するか（1-based、紐付け用）
+    script_line_text: str = ""  # 録音時点のセリフテキスト（表示・ファイル名用）
 
     def display_name(self, index: int | None = None) -> str:
-        """一覧表示用。index を渡すと 'Take 1  02/19 14:32' 形式、否则 wav_filename。"""
+        """一覧表示用。index を渡すと 'Take 1  02/19 14:32  「セリフ」' 形式、否則 wav_filename。"""
         if index is not None and self.created_at:
             try:
                 dt = datetime.fromisoformat(self.created_at.replace("Z", "+00:00"))
                 short = dt.strftime("%m/%d %H:%M")
             except (ValueError, TypeError):
                 short = self.created_at[:16] if len(self.created_at) >= 16 else self.created_at
-            return f"Take {index + 1}  {short}"
+            if self.script_line_text:
+                preview = self.script_line_text[:20]
+                if len(self.script_line_text) > 20:
+                    preview += "…"
+                line_part = f"  「{preview}」"
+            else:
+                line_part = ""
+            return f"Take {index + 1}  {short}{line_part}"
         return self.wav_filename
 
 
