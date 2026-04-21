@@ -138,6 +138,60 @@ def _amp_to_dbfs_value(amp: float) -> float | None:
     return 20.0 * math.log10(max(a, 1e-5))
 
 
+def _classify_lufs_status(lufs: float | None, target: float) -> str:
+    """現在の LUFS と目標値の差から状態を分類する。
+
+    戻り値: ``"ok"`` / ``"warn"`` / ``"bad"`` / ``"none"``
+    - ``"ok"``   : 差が ±1.0 LUFS 以内
+    - ``"warn"`` : 差が ±3.0 LUFS 以内
+    - ``"bad"``  : それ以上
+    - ``"none"`` : 計測できず（短すぎ・無音など）
+    """
+    if lufs is None or not math.isfinite(lufs):
+        return "none"
+    diff = abs(lufs - target)
+    if diff <= 1.0:
+        return "ok"
+    if diff <= 3.0:
+        return "warn"
+    return "bad"
+
+
+def _classify_peak_status(peak_dbfs: float | None) -> str:
+    """現在のピーク dBFS から状態を分類する。
+
+    戻り値: ``"ok"`` / ``"warn"`` / ``"bad"`` / ``"none"``
+    - ``"ok"``   : -6 dBFS 以下（余裕あり）
+    - ``"warn"`` : -6 〜 -1 dBFS（攻めゾーン）
+    - ``"bad"``  : -1 dBFS 以上（クリップ寸前/クリップ）
+    - ``"none"`` : 無音
+    """
+    if peak_dbfs is None or not math.isfinite(peak_dbfs):
+        return "none"
+    if peak_dbfs >= -1.0:
+        return "bad"
+    if peak_dbfs >= -6.0:
+        return "warn"
+    return "ok"
+
+
+# LUFS/Peak 状態ごとの色（ライト / ダークテーマ共通で視認できる値を選ぶ）
+_STATUS_COLORS_LIGHT = {
+    "ok": "#1f8b4c",    # 深めの緑（白背景でも潰れない）
+    "warn": "#c07a00",  # 濃いアンバー
+    "bad": "#c23b22",   # 赤
+    "none": "#888",     # グレー
+    "idle": "#888",
+}
+_STATUS_COLORS_DARK = {
+    "ok": "#3ecf6e",    # 明るめの緑（黒背景で映える）
+    "warn": "#f0c040",  # 黄
+    "bad": "#ff6b5e",   # 明るい赤
+    "none": "#888",
+    "idle": "#888",
+}
+
+
 class ScriptEdit(QPlainTextEdit):
     """台本エリア。.txt ファイルのドラッグ＆ドロップで台本を開く。"""
     def __init__(self, parent: QWidget | None = None, on_file_dropped: typing.Callable[[str], None] | None = None):
@@ -627,7 +681,20 @@ class MainWindow(QMainWindow):
         self._record_and_play_btn.setEnabled(False)
         self._record_and_play_btn.clicked.connect(self._on_record_and_play)
         rec_controls_row.addWidget(self._record_and_play_btn)
-        
+
+        # LUFS インジケーター（録音ボタン横に置いてマイクゲイン調整の指針にする）
+        self._rec_lufs_indicator = QLabel("●  計測中…")
+        self._rec_lufs_indicator.setObjectName("recLufsIndicator")
+        self._rec_lufs_indicator.setToolTip(
+            "目標 LUFS との差でマイクゲインの当たり具合を示す。\n"
+            "●緑 = 目標±1 LUFS 以内（OK）\n"
+            "●黄 = 目標±3 LUFS 以内（近い）\n"
+            "●赤 = それ以上ズレている（要調整）"
+        )
+        self._rec_lufs_indicator.setVisible(get_level_meter_enabled())
+        self._update_rec_lufs_indicator_style(status="idle")
+        rec_controls_row.addWidget(self._rec_lufs_indicator)
+
         rec_controls_row.addStretch()
         rec_group.addLayout(rec_controls_row)
         # A1: マイク入力レベルメーター
@@ -1073,23 +1140,98 @@ class MainWindow(QMainWindow):
         self._live_lufs_tick_counter = (getattr(self, "_live_lufs_tick_counter", 0) + 1) % 4
         if self._live_lufs_tick_counter != 0:
             return
-        # Peak dBFS（数値）
+
+        # Peak dBFS を計算・分類
         peak_dbfs = _amp_to_dbfs_value(peak)
-        peak_str = "—.—" if peak_dbfs is None else f"{peak_dbfs:+5.1f}"
+        peak_status = _classify_peak_status(peak_dbfs)
+        peak_num = "—.—" if peak_dbfs is None else f"{peak_dbfs:+5.1f}"
+
         # Short-term LUFS: 直近 3 秒のモノラルサンプルから pyloudnorm で計算
-        lufs_str = "—.—"
+        lufs_val: float | None = None
         try:
             from src.recorder import SAMPLE_RATE as _SR
             samples = self._recorder.get_monitor_samples_mono(seconds=3.0)
             if samples.size >= int(_SR * 0.5):
                 from src.audio_processing import analyze_loudness_samples
                 info = analyze_loudness_samples(samples, _SR)
-                lufs = info.get("integrated_lufs")
-                if isinstance(lufs, float) and math.isfinite(lufs):
-                    lufs_str = f"{lufs:+6.1f}"
+                v = info.get("integrated_lufs")
+                if isinstance(v, float) and math.isfinite(v):
+                    lufs_val = v
         except Exception:  # noqa: BLE001
             pass
-        self._live_lufs_label.setText(f"Peak {peak_str} dBFS   ST {lufs_str} LUFS")
+
+        target = get_lufs_target()
+        lufs_status = _classify_lufs_status(lufs_val, target)
+        if lufs_val is None:
+            lufs_num_str = "—.—"
+            lufs_diff_str = ""
+        else:
+            diff = lufs_val - target
+            lufs_num_str = f"{lufs_val:+6.1f}"
+            lufs_diff_str = f" ({diff:+.1f})"
+
+        # 配色（テーマに合わせる）
+        dark = self._is_dark_theme_active()
+        palette = _STATUS_COLORS_DARK if dark else _STATUS_COLORS_LIGHT
+        peak_color = palette[peak_status]
+        lufs_color = palette[lufs_status]
+        text_base_color = "#e6e6e6" if dark else "#333"
+
+        # HTML で二色表示（等幅フォントは親のスタイルシートで指定済み）
+        html = (
+            f'<span style="color:{text_base_color}">Peak </span>'
+            f'<span style="color:{peak_color}; font-weight:bold">{peak_num} dBFS</span>'
+            f'<span style="color:{text_base_color}">   ST </span>'
+            f'<span style="color:{lufs_color}; font-weight:bold">{lufs_num_str} LUFS{lufs_diff_str}</span>'
+        )
+        self._live_lufs_label.setText(html)
+
+        # 録音ボタン横のインジケーターも更新
+        self._update_rec_lufs_indicator_style(
+            status=lufs_status,
+            lufs_val=lufs_val,
+            target=target,
+        )
+
+    def _update_rec_lufs_indicator_style(
+        self,
+        *,
+        status: str,
+        lufs_val: float | None = None,
+        target: float | None = None,
+    ) -> None:
+        """録音ボタン横のインジケーター（●記号＋テキスト）を状態に応じて更新する。"""
+        if not hasattr(self, "_rec_lufs_indicator"):
+            return
+        dark = self._is_dark_theme_active()
+        palette = _STATUS_COLORS_DARK if dark else _STATUS_COLORS_LIGHT
+        color = palette.get(status, palette["none"])
+        if status == "idle":
+            text = "●  計測中…"
+        elif status == "none":
+            text = "●  計測中…"
+        elif status == "ok":
+            text = f"●  マイクゲイン OK ({lufs_val:+.1f})"
+        elif status == "warn":
+            diff = (lufs_val - target) if (lufs_val is not None and target is not None) else 0.0
+            text = f"●  近い ({diff:+.1f})"
+        elif status == "bad":
+            diff = (lufs_val - target) if (lufs_val is not None and target is not None) else 0.0
+            text = f"●  要調整 ({diff:+.1f})"
+        else:
+            text = "●"
+        self._rec_lufs_indicator.setText(text)
+        self._rec_lufs_indicator.setStyleSheet(
+            f"color: {color}; font-weight: bold; font-family: Consolas, 'Courier New', monospace;"
+        )
+
+    def _is_dark_theme_active(self) -> bool:
+        """現在ダークテーマが有効かを UI 状態から判定する（テーマ設定参照）。"""
+        try:
+            from src.ui.settings import get_theme as _get_theme
+            return _get_theme() == "dark"
+        except Exception:
+            return False
 
     def _format_duration(self, seconds: float) -> str:
         m = int(seconds // 60)
@@ -1397,6 +1539,23 @@ class MainWindow(QMainWindow):
         self._playback_waveform.set_dark_theme(dark)
         if hasattr(self, "_level_meter"):
             self._level_meter.set_dark_theme(dark)
+        # LUFS インジケーターの色はテーマで変わるので、次の tick を待たずに現状維持で再塗り
+        if hasattr(self, "_rec_lufs_indicator"):
+            # 最新の文言を保ちつつスタイルだけ塗り直すため、現状の表示に応じた status を推定する。
+            cur_text = self._rec_lufs_indicator.text()
+            if "OK" in cur_text:
+                st = "ok"
+            elif "近い" in cur_text:
+                st = "warn"
+            elif "要調整" in cur_text:
+                st = "bad"
+            else:
+                st = "idle"
+            palette = _STATUS_COLORS_DARK if dark else _STATUS_COLORS_LIGHT
+            color = palette.get(st, palette["none"])
+            self._rec_lufs_indicator.setStyleSheet(
+                f"color: {color}; font-weight: bold; font-family: Consolas, 'Courier New', monospace;"
+            )
         self._refresh_take_list_highlight()
         for frame in self.findChildren(QFrame):
             if frame.objectName() == "welcomeCard":
@@ -2485,6 +2644,8 @@ class MainWindow(QMainWindow):
             self._level_meter.setVisible(meter_enabled)
             if hasattr(self, "_live_lufs_label"):
                 self._live_lufs_label.setVisible(meter_enabled)
+            if hasattr(self, "_rec_lufs_indicator"):
+                self._rec_lufs_indicator.setVisible(meter_enabled)
             if meter_enabled:
                 if not self._recorder.is_recording:
                     self._recorder.start_monitoring()
