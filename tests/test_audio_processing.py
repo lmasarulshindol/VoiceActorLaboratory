@@ -79,6 +79,55 @@ class TestAnalyzeLoudness:
         assert info["peak_dbfs"] is None
 
 
+class TestAnalyzeLoudnessSamples:
+    """メモリ上サンプルからのリアルタイム LUFS 計算。"""
+
+    def test_サイン波3秒でLUFSが計算できる(self) -> None:
+        t = np.linspace(0, 3.0, SR * 3, endpoint=False)
+        data = (0.3 * np.sin(2 * np.pi * 440 * t)).astype(np.float32)
+        info = ap.analyze_loudness_samples(data, SR)
+        assert info["integrated_lufs"] is not None
+        assert math.isfinite(info["integrated_lufs"])
+        assert -30.0 < info["integrated_lufs"] < -5.0
+        assert info["peak_dbfs"] is not None
+        assert info["duration_sec"] == 3.0
+
+    def test_短すぎるとNone(self) -> None:
+        t = np.linspace(0, 0.2, int(SR * 0.2), endpoint=False)
+        data = (0.3 * np.sin(2 * np.pi * 440 * t)).astype(np.float32)
+        info = ap.analyze_loudness_samples(data, SR)
+        assert info["integrated_lufs"] is None
+        assert info["peak_dbfs"] is not None  # peak は短くても計算できる
+
+    def test_空配列は全てNone(self) -> None:
+        info = ap.analyze_loudness_samples(np.array([], dtype=np.float32), SR)
+        assert info["integrated_lufs"] is None
+        assert info["peak_dbfs"] is None
+        assert info["duration_sec"] == 0.0
+
+    def test_int16入力も自動で正規化される(self) -> None:
+        t = np.linspace(0, 2.0, SR * 2, endpoint=False)
+        data_f = (0.3 * np.sin(2 * np.pi * 440 * t)).astype(np.float32)
+        data_i = (data_f * 32767).astype(np.int16)
+        f_info = ap.analyze_loudness_samples(data_f, SR)
+        i_info = ap.analyze_loudness_samples(data_i, SR)
+        assert f_info["integrated_lufs"] is not None
+        assert i_info["integrated_lufs"] is not None
+        # 量子化誤差を許容して 0.5 LUFS 以内
+        assert abs(f_info["integrated_lufs"] - i_info["integrated_lufs"]) < 0.5
+
+    def test_無音サンプルはNone(self) -> None:
+        data = np.zeros(SR * 2, dtype=np.float32)
+        info = ap.analyze_loudness_samples(data, SR)
+        assert info["integrated_lufs"] is None
+        assert info["peak_dbfs"] is None
+
+    def test_None入力でも例外を投げない(self) -> None:
+        info = ap.analyze_loudness_samples(None, SR)
+        assert info["integrated_lufs"] is None
+        assert info["peak_dbfs"] is None
+
+
 class TestNormalizeToLufs:
     def test_出力が目標LUFSに近づく(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

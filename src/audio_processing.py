@@ -72,6 +72,57 @@ def analyze_loudness(wav_path: str) -> dict:
     return {"integrated_lufs": lufs, "peak_dbfs": peak_dbfs, "duration_sec": duration}
 
 
+def analyze_loudness_samples(
+    samples,
+    sample_rate: int,
+) -> dict:
+    """
+    メモリ上のサンプル配列に対して BS.1770 LUFS と Peak dBFS を計算する。
+
+    リアルタイム表示（直近数秒のバッファを渡す）向け。
+    入力は ``numpy.ndarray`` の float/int 系サンプル（モノラル 1D か (N,C) 2D）。
+    - 400ms 未満や無音の場合は ``integrated_lufs`` を None にする。
+    - 例外は投げず、失敗時は安全値を返す。
+    """
+    try:
+        import numpy as np
+    except ImportError:
+        return {"integrated_lufs": None, "peak_dbfs": None, "duration_sec": 0.0}
+
+    if samples is None:
+        return {"integrated_lufs": None, "peak_dbfs": None, "duration_sec": 0.0}
+    data = np.asarray(samples)
+    if data.size == 0 or sample_rate <= 0:
+        return {"integrated_lufs": None, "peak_dbfs": None, "duration_sec": 0.0}
+
+    # int 系は正規化、float はそのまま（想定: float32 モノラル [-1, 1]）
+    if data.dtype.kind in ("i", "u"):
+        info = np.iinfo(data.dtype)
+        denom = max(abs(info.min), info.max) or 1
+        data = data.astype(np.float32) / float(denom)
+    else:
+        data = data.astype(np.float32, copy=False)
+
+    duration = float(len(data)) / float(sample_rate)
+    peak_val = float(np.max(np.abs(data))) if data.size else 0.0
+    peak_dbfs = 20.0 * math.log10(peak_val) if peak_val > 0 else None
+
+    if duration < 0.4:
+        return {"integrated_lufs": None, "peak_dbfs": peak_dbfs, "duration_sec": duration}
+
+    try:
+        import pyloudnorm as pyln
+        meter = pyln.Meter(sample_rate)
+        lufs = float(meter.integrated_loudness(data))
+        if not math.isfinite(lufs):
+            lufs = None
+    except Exception as e:  # noqa: BLE001
+        logger.debug("analyze_loudness_samples: pyloudnorm failed: %s", e)
+        lufs = None
+
+    return {"integrated_lufs": lufs, "peak_dbfs": peak_dbfs, "duration_sec": duration}
+
+
 def normalize_to_lufs(
     in_path: str,
     out_path: str,

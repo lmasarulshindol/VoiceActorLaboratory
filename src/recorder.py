@@ -34,6 +34,11 @@ class Recorder:
         self._monitor_stream: sd.InputStream | None = None
         self._monitor_peak: float = 0.0  # 直近ブロックのピーク（0.0〜1.0、int16 を正規化済み）
         self._monitor_rms: float = 0.0  # 直近ブロックの RMS（同上）
+        # リアルタイム LUFS 計算用: 直近数秒のモノラル float32 サンプルを保持するリングバッファ。
+        # モニター中も録音中も `_update_levels_from_block` から積むため、どちらでも動作する。
+        self._monitor_ring: list[np.ndarray] = []
+        self._monitor_ring_samples: int = 0
+        self._monitor_ring_max_samples: int = int(SAMPLE_RATE * 3.5)
 
     def set_input_device(self, device_id: int | None) -> None:
         """録音に使う入力デバイスを指定する。None でデフォルト。"""
@@ -87,6 +92,16 @@ class Recorder:
         with self._lock:
             self._monitor_peak = peak
             self._monitor_rms = rms
+            # リングバッファに追加し、上限を超えた古いチャンクを捨てる。
+            if a.size > 0:
+                self._monitor_ring.append(a.copy())
+                self._monitor_ring_samples += a.shape[0]
+                while (
+                    self._monitor_ring_samples > self._monitor_ring_max_samples
+                    and self._monitor_ring
+                ):
+                    old = self._monitor_ring.pop(0)
+                    self._monitor_ring_samples -= old.shape[0]
 
     def _start_stream(self) -> None:
         """マイクストリームを開始する。"""
@@ -230,11 +245,29 @@ class Recorder:
         with self._lock:
             self._monitor_peak = 0.0
             self._monitor_rms = 0.0
+            self._monitor_ring = []
+            self._monitor_ring_samples = 0
 
     def get_monitor_levels(self) -> tuple[float, float]:
         """直近のピーク / RMS（いずれも 0.0〜1.0）を返す。"""
         with self._lock:
             return self._monitor_peak, self._monitor_rms
+
+    def get_monitor_samples_mono(self, seconds: float = 3.0) -> np.ndarray:
+        """直近 ``seconds`` 秒ぶんのモノラル float32 サンプル（[-1, 1]）を返す。
+
+        リアルタイム LUFS 計算などに使う想定。録音中・モニター中のどちらでも動く。
+        バッファが足りなければ得られる分だけ返す（呼び出し側で長さをチェックする）。
+        """
+        with self._lock:
+            chunks = list(self._monitor_ring)
+        if not chunks:
+            return np.array([], dtype=np.float32)
+        data = np.concatenate(chunks, axis=0).astype(np.float32, copy=False)
+        max_samples = int(SAMPLE_RATE * seconds)
+        if data.shape[0] > max_samples:
+            data = data[-max_samples:]
+        return data
 
     def get_visualization_samples(self, max_seconds: float = 10.0) -> np.ndarray:
         """

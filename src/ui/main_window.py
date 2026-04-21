@@ -124,6 +124,20 @@ from src.ui.theme_loader import apply_app_theme
 from src.script_format import suggest_take_basename, get_current_line_text, get_current_line_number, get_current_section
 
 
+def _amp_to_dbfs_value(amp: float) -> float | None:
+    """振幅比（0〜1）を dBFS に変換。無音なら None。
+
+    リアルタイム Peak 数値表示に使用する。下限は -90 dBFS まで。
+    """
+    try:
+        a = float(amp)
+    except (TypeError, ValueError):
+        return None
+    if a <= 1e-5:
+        return None
+    return 20.0 * math.log10(max(a, 1e-5))
+
+
 class ScriptEdit(QPlainTextEdit):
     """台本エリア。.txt ファイルのドラッグ＆ドロップで台本を開く。"""
     def __init__(self, parent: QWidget | None = None, on_file_dropped: typing.Callable[[str], None] | None = None):
@@ -626,6 +640,19 @@ class MainWindow(QMainWindow):
         self._level_meter.setVisible(get_level_meter_enabled())
         self._level_meter.setMinimumWidth(160)
         meter_row.addWidget(self._level_meter, 1)
+        # リアルタイム数値表示: Peak dBFS / 直近3秒の LUFS
+        self._live_lufs_label = QLabel("Peak —.— dBFS   ST —.— LUFS")
+        self._live_lufs_label.setObjectName("liveLufsLabel")
+        self._live_lufs_label.setToolTip(
+            "Peak: 直近ブロックの最大値（0 dBFS 超で歪み）\n"
+            "ST: 直近 3 秒の BS.1770 ラウドネス。目標値の目安 -16 LUFS"
+        )
+        self._live_lufs_label.setMinimumWidth(220)
+        self._live_lufs_label.setStyleSheet("font-family: Consolas, 'Courier New', monospace;")
+        self._live_lufs_label.setVisible(get_level_meter_enabled())
+        meter_row.addWidget(self._live_lufs_label, 0)
+        # LUFS は負荷軽減のため、レベルメーターの毎回tickではなく4tickに1回だけ更新する
+        self._live_lufs_tick_counter = 0
         rec_group.addLayout(meter_row)
         control_layout.addLayout(rec_group)
 
@@ -1031,7 +1058,7 @@ class MainWindow(QMainWindow):
             self._on_seek_forward()
 
     def _on_level_meter_tick(self) -> None:
-        """A1: レベルメーターを定期更新する。"""
+        """A1: レベルメーターを定期更新する。合わせて数値表示（Peak / ST LUFS）も更新。"""
         if not hasattr(self, "_level_meter") or not self._level_meter.isVisible():
             return
         try:
@@ -1039,6 +1066,30 @@ class MainWindow(QMainWindow):
         except Exception:
             peak, rms = 0.0, 0.0
         self._level_meter.set_levels(peak, rms)
+
+        # リアルタイム数値（Peak / ST LUFS）は 200ms 間隔（tick は 50ms なので 4 回に 1 回）
+        if not hasattr(self, "_live_lufs_label") or not self._live_lufs_label.isVisible():
+            return
+        self._live_lufs_tick_counter = (getattr(self, "_live_lufs_tick_counter", 0) + 1) % 4
+        if self._live_lufs_tick_counter != 0:
+            return
+        # Peak dBFS（数値）
+        peak_dbfs = _amp_to_dbfs_value(peak)
+        peak_str = "—.—" if peak_dbfs is None else f"{peak_dbfs:+5.1f}"
+        # Short-term LUFS: 直近 3 秒のモノラルサンプルから pyloudnorm で計算
+        lufs_str = "—.—"
+        try:
+            from src.recorder import SAMPLE_RATE as _SR
+            samples = self._recorder.get_monitor_samples_mono(seconds=3.0)
+            if samples.size >= int(_SR * 0.5):
+                from src.audio_processing import analyze_loudness_samples
+                info = analyze_loudness_samples(samples, _SR)
+                lufs = info.get("integrated_lufs")
+                if isinstance(lufs, float) and math.isfinite(lufs):
+                    lufs_str = f"{lufs:+6.1f}"
+        except Exception:  # noqa: BLE001
+            pass
+        self._live_lufs_label.setText(f"Peak {peak_str} dBFS   ST {lufs_str} LUFS")
 
     def _format_duration(self, seconds: float) -> str:
         m = int(seconds // 60)
@@ -2432,6 +2483,8 @@ class MainWindow(QMainWindow):
             # A1: レベルメーターの表示切替
             meter_enabled = get_level_meter_enabled()
             self._level_meter.setVisible(meter_enabled)
+            if hasattr(self, "_live_lufs_label"):
+                self._live_lufs_label.setVisible(meter_enabled)
             if meter_enabled:
                 if not self._recorder.is_recording:
                     self._recorder.start_monitoring()
