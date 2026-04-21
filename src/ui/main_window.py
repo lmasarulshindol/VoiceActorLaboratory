@@ -2621,15 +2621,39 @@ class MainWindow(QMainWindow):
                 self._refresh_take_list()
         act_adopted.triggered.connect(toggle_adopted)
         menu.addAction(act_adopted)
-        # B1: 星評価サブメニュー
-        rating_menu = menu.addMenu("評価 (★)")
-        current_rating = t.rating if t else 0
+        # 選択中の複数テイクが対象になる場合のIDリストを算出。
+        # （右クリック対象が選択群に含まれていれば全選択を、含まれていなければ当該テイクのみ）
+        if len(selected) >= 2 and take_id in selected:
+            sel_targets = list(selected)
+        else:
+            sel_targets = [take_id]
+        multi = len(sel_targets) >= 2
+
+        # B1: 星評価サブメニュー（複数選択時は一括適用）
+        rating_label = f"評価 (★) （{len(sel_targets)}件に適用）" if multi else "評価 (★)"
+        rating_menu = menu.addMenu(rating_label)
+        # 複数選択時は「全員が同じ評価のときだけ ● を付ける」
+        if multi:
+            ratings_set = {
+                (self._project.get_take(i).rating if self._project.get_take(i) else 0)
+                for i in sel_targets
+            }
+            current_rating = next(iter(ratings_set)) if len(ratings_set) == 1 else None
+        else:
+            current_rating = t.rating if t else 0
         for r in (0, 1, 2, 3, 4, 5):
             label = "評価なし" if r == 0 else ("★" * r)
-            if r == current_rating:
+            if current_rating is not None and r == current_rating:
                 label = "● " + label
             act_r = QAction(label, self)
-            act_r.triggered.connect(lambda _checked=False, rating=r: self._set_rating_for_take(take_id, rating))
+            if multi:
+                act_r.triggered.connect(
+                    lambda _c=False, rating=r, ids=sel_targets: self._bulk_apply(ids, rating=rating)
+                )
+            else:
+                act_r.triggered.connect(
+                    lambda _c=False, rating=r: self._set_rating_for_take(take_id, rating)
+                )
             rating_menu.addAction(act_r)
         # B1: タグ編集
         act_tags = QAction("タグを編集…", self)
@@ -2663,31 +2687,55 @@ class MainWindow(QMainWindow):
 
         menu.addSeparator()
 
-        # 後処理サブメニュー（A/B）
-        proc_menu = menu.addMenu("後処理")
+        # 後処理サブメニュー（A/B）- 複数選択時は全件に適用
+        proc_label = f"後処理（{len(sel_targets)}件に適用）" if multi else "後処理"
+        proc_menu = menu.addMenu(proc_label)
         act_analyze = QAction("ラウドネス(LUFS) 解析", self)
-        act_analyze.triggered.connect(lambda: self._on_analyze_loudness_take(take_id))
+        act_analyze.triggered.connect(
+            lambda _c=False, ids=sel_targets: self._apply_post_op_to_takes(
+                ids, "LUFS 解析", self._on_analyze_loudness_take, confirm_overwrite=False
+            )
+        )
         proc_menu.addAction(act_analyze)
         act_trim = QAction("前後の無音をトリム（上書き）", self)
-        act_trim.triggered.connect(lambda: self._on_trim_silence_take(take_id))
+        act_trim.triggered.connect(
+            lambda _c=False, ids=sel_targets: self._apply_post_op_to_takes(
+                ids, "無音トリム", self._on_trim_silence_take
+            )
+        )
         proc_menu.addAction(act_trim)
         act_nr = QAction("ノイズ除去（上書き）", self)
-        act_nr.triggered.connect(lambda: self._on_noise_reduce_take(take_id))
+        act_nr.triggered.connect(
+            lambda _c=False, ids=sel_targets: self._apply_post_op_to_takes(
+                ids, "ノイズ除去", self._on_noise_reduce_take
+            )
+        )
         proc_menu.addAction(act_nr)
         act_norm = QAction("LUFS 正規化（上書き）", self)
-        act_norm.triggered.connect(lambda: self._on_normalize_loudness_take(take_id))
+        act_norm.triggered.connect(
+            lambda _c=False, ids=sel_targets: self._apply_post_op_to_takes(
+                ids, "LUFS 正規化", self._on_normalize_loudness_take
+            )
+        )
         proc_menu.addAction(act_norm)
 
-        # 単発書き出し（C）
-        exp_menu = menu.addMenu("このテイクを書き出し")
+        # 書き出し（C）- 複数選択時はフォルダに一括書き出し
+        exp_label = f"選択 {len(sel_targets)} 件を書き出し" if multi else "このテイクを書き出し"
+        exp_menu = menu.addMenu(exp_label)
         act_exp_wav = QAction("WAV で書き出し", self)
-        act_exp_wav.triggered.connect(lambda: self._on_export_single_take(take_id, "wav"))
+        act_exp_wav.triggered.connect(
+            lambda _c=False, ids=sel_targets: self._on_export_takes_as(ids, "wav")
+        )
         exp_menu.addAction(act_exp_wav)
         act_exp_flac = QAction("FLAC で書き出し", self)
-        act_exp_flac.triggered.connect(lambda: self._on_export_single_take(take_id, "flac"))
+        act_exp_flac.triggered.connect(
+            lambda _c=False, ids=sel_targets: self._on_export_takes_as(ids, "flac")
+        )
         exp_menu.addAction(act_exp_flac)
         act_exp_mp3 = QAction("MP3 で書き出し", self)
-        act_exp_mp3.triggered.connect(lambda: self._on_export_single_take(take_id, "mp3"))
+        act_exp_mp3.triggered.connect(
+            lambda _c=False, ids=sel_targets: self._on_export_takes_as(ids, "mp3")
+        )
         exp_menu.addAction(act_exp_mp3)
 
         # リテイク（削除して再録音）
@@ -3030,6 +3078,97 @@ class MainWindow(QMainWindow):
             from src.audio_processing import normalize_to_lufs
             return normalize_to_lufs(in_path, out_path, target_lufs=target)
         self._process_take_in_place(take_id, f"LUFS 正規化({target:.0f})", _proc)
+
+    def _apply_post_op_to_takes(
+        self,
+        take_ids: list[str],
+        label: str,
+        single_op,
+        *,
+        confirm_overwrite: bool = True,
+    ) -> None:
+        """複数テイクに後処理を順次適用するヘルパー。
+
+        単一テイク用の処理関数 ``single_op(take_id)`` を反復呼び出しする。
+        ``confirm_overwrite=True`` の場合、2件以上なら上書き確認ダイアログを出す。
+        """
+        if not take_ids:
+            return
+        n = len(take_ids)
+        if confirm_overwrite and n >= 2:
+            box = QMessageBox(self)
+            box.setWindowTitle(label)
+            box.setText(f"選択中の {n} 件に「{label}」を適用します。\n元の WAV を上書きします。よろしいですか？")
+            box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            box.setDefaultButton(QMessageBox.StandardButton.Yes)
+            if box.exec() != QMessageBox.StandardButton.Yes:
+                return
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            for i, tid in enumerate(take_ids, start=1):
+                if n >= 2:
+                    self.statusBar().showMessage(f"{label}: {i}/{n} …", 0)
+                    QApplication.processEvents()
+                single_op(tid)
+        finally:
+            QApplication.restoreOverrideCursor()
+        if n >= 2:
+            self.statusBar().showMessage(f"{label}: {n} 件に適用しました", 5000)
+
+    def _on_export_takes_as(self, take_ids: list[str], fmt: str) -> None:
+        """右クリック書き出し。1件なら単発ダイアログ、複数ならフォルダ選択＋自動命名。"""
+        if not take_ids:
+            return
+        if len(take_ids) == 1:
+            self._on_export_single_take(take_ids[0], fmt)
+            return
+        if not self._project.has_project_dir():
+            return
+        try:
+            from src.audio_processing import output_extension_for
+            ext = output_extension_for(fmt)
+        except ImportError:
+            QMessageBox.warning(self, "書き出し", "音声処理モジュールを読み込めませんでした。")
+            return
+        dest = QFileDialog.getExistingDirectory(
+            self,
+            f"{fmt.upper()} 書き出し先フォルダを選択（{len(take_ids)} 件）",
+            directory=get_export_last_dir() or "",
+        )
+        if not dest:
+            return
+        set_export_last_dir(dest)
+        project_name = Path(self._project.project_dir).name or "project"
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        ok_count = 0
+        failed: list[str] = []
+        try:
+            from src.audio_processing import convert_format
+            bitrate = get_mp3_bitrate()
+            for i, tid in enumerate(take_ids, start=1):
+                t = self._project.get_take(tid)
+                if t is None:
+                    continue
+                out_name = f"{project_name}_{Path(t.wav_filename).stem}{ext}"
+                out_path = str(Path(dest) / out_name)
+                self.statusBar().showMessage(f"{fmt.upper()} 書き出し: {i}/{len(take_ids)} …", 0)
+                QApplication.processEvents()
+                try:
+                    src_wav = storage.get_take_wav_path(self._project.project_dir, t.wav_filename)
+                    convert_format(src_wav, out_path, fmt=fmt, mp3_bitrate_kbps=bitrate)
+                    ok_count += 1
+                except Exception as e:  # noqa: BLE001
+                    failed.append(f"{t.wav_filename}: {e}")
+        finally:
+            QApplication.restoreOverrideCursor()
+        if failed:
+            QMessageBox.warning(
+                self,
+                "書き出し",
+                f"{ok_count} 件成功 / {len(failed)} 件失敗\n\n失敗:\n" + "\n".join(failed[:10]),
+            )
+        else:
+            self.statusBar().showMessage(f"{fmt.upper()} 書き出し完了: {ok_count} 件 → {dest}", 6000)
 
     def _on_export_single_take(self, take_id: str, fmt: str) -> None:
         """右クリックからの単発書き出し（フォーマット指定）。"""
