@@ -30,10 +30,20 @@ class Recorder:
         self._stream: sd.InputStream | None = None
         self._lock = threading.Lock()
         self._input_device: int | None = None  # sounddevice のデバイス番号。None はデフォルト。
+        # 非録音時にマイク入力レベルを取るためのモニター用ストリーム
+        self._monitor_stream: sd.InputStream | None = None
+        self._monitor_peak: float = 0.0  # 直近ブロックのピーク（0.0〜1.0、int16 を正規化済み）
+        self._monitor_rms: float = 0.0  # 直近ブロックの RMS（同上）
 
     def set_input_device(self, device_id: int | None) -> None:
         """録音に使う入力デバイスを指定する。None でデフォルト。"""
+        if self._input_device == device_id:
+            return
         self._input_device = device_id
+        # モニター中ならデバイス切替のため一旦張り直す
+        if self._monitor_stream is not None and not self._is_recording:
+            self.stop_monitoring()
+            self.start_monitoring()
 
     def get_input_device(self) -> int | None:
         """現在の入力デバイス番号。"""
@@ -57,6 +67,26 @@ class Recorder:
                 total = sum(c.shape[0] for c in self._buffer) + indata.shape[0]
                 if total <= _MAX_SAMPLES:
                     self._buffer.append(indata.copy())
+        # 録音中も録音外の「常時モニター」も、同じ関数でレベル情報を更新する
+        self._update_levels_from_block(indata)
+
+    def _update_levels_from_block(self, indata: np.ndarray) -> None:
+        """ブロックから peak / rms を更新する（int16/float どちらも想定）。"""
+        if indata is None or indata.size == 0:
+            return
+        arr = indata
+        if arr.dtype == np.int16:
+            denom = 32768.0
+            a = arr.astype(np.float32) / denom
+        else:
+            a = arr.astype(np.float32)
+        if a.ndim > 1:
+            a = a[:, 0]
+        peak = float(np.max(np.abs(a))) if a.size else 0.0
+        rms = float(np.sqrt(np.mean(a * a))) if a.size else 0.0
+        with self._lock:
+            self._monitor_peak = peak
+            self._monitor_rms = rms
 
     def _start_stream(self) -> None:
         """マイクストリームを開始する。"""
@@ -157,6 +187,54 @@ class Recorder:
             return 0.0
         total_samples = sum(c.shape[0] for c in chunks)
         return total_samples / SAMPLE_RATE
+
+    def start_monitoring(self) -> bool:
+        """録音していない時間もマイク入力レベルを取るための軽いストリームを開始する。
+
+        録音中は録音ストリーム側で peak/rms を更新するので何もしない。
+        開始に失敗しても例外は投げず False を返す（マイクが無い環境でも UI を壊さないため）。
+        """
+        with self._lock:
+            if self._is_recording:
+                return False
+            if self._monitor_stream is not None:
+                return True
+        try:
+            kwargs: dict = dict(
+                samplerate=SAMPLE_RATE,
+                channels=CHANNELS,
+                dtype="float32",
+                callback=lambda indata, frames, time_info, status: self._update_levels_from_block(indata),
+                blocksize=1024,
+            )
+            if self._input_device is not None:
+                kwargs["device"] = self._input_device
+            stream = sd.InputStream(**kwargs)
+            stream.start()
+            self._monitor_stream = stream
+            return True
+        except Exception:
+            self._monitor_stream = None
+            return False
+
+    def stop_monitoring(self) -> None:
+        """レベルモニター用ストリームを停止する。"""
+        stream = self._monitor_stream
+        self._monitor_stream = None
+        if stream is not None:
+            try:
+                stream.stop()
+                stream.close()
+            except Exception:
+                pass
+        with self._lock:
+            self._monitor_peak = 0.0
+            self._monitor_rms = 0.0
+
+    def get_monitor_levels(self) -> tuple[float, float]:
+        """直近のピーク / RMS（いずれも 0.0〜1.0）を返す。"""
+        with self._lock:
+            return self._monitor_peak, self._monitor_rms
 
     def get_visualization_samples(self, max_seconds: float = 10.0) -> np.ndarray:
         """

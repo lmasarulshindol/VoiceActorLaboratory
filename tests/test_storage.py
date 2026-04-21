@@ -239,3 +239,88 @@ class TestStorage:
             sf.write(str(wav_path), np.zeros(44100, dtype=np.float32), 44100)
             dur = storage.get_wav_duration_seconds(tmp, "one_sec.wav")
             assert 0.99 <= dur <= 1.01
+
+
+class TestExportTakesWithFormat:
+    """A/B/C: export_takes のフォーマット指定・後処理チェーンのテスト。"""
+
+    def _make_take(self, project_dir: str) -> str:
+        import numpy as np
+        import soundfile as sf
+        storage.create_project(project_dir)
+        wav = Path(project_dir) / "src.wav"
+        t = np.linspace(0, 1.5, int(44100 * 1.5), endpoint=False)
+        sig = (0.3 * np.sin(2 * np.pi * 440 * t)).astype(np.float32)
+        sf.write(str(wav), sig, 44100, subtype="PCM_16")
+        take = storage.add_take_from_file(project_dir, str(wav))
+        return take.id
+
+    def test_flac形式で書き出せる(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            take_id = self._make_take(tmp)
+            dest = Path(tmp) / "export"
+            paths = storage.export_takes(tmp, [take_id], str(dest), fmt="flac")
+            assert len(paths) == 1
+            assert Path(paths[0]).suffix.lower() == ".flac"
+            assert Path(paths[0]).exists()
+
+    def test_mp3形式で書き出せる(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            take_id = self._make_take(tmp)
+            dest = Path(tmp) / "export"
+            paths = storage.export_takes(
+                tmp, [take_id], str(dest), fmt="mp3", mp3_bitrate_kbps=128
+            )
+            assert len(paths) == 1
+            assert Path(paths[0]).suffix.lower() == ".mp3"
+            assert Path(paths[0]).stat().st_size > 500
+
+    def test_lufs正規化を伴うwav書き出し(self) -> None:
+        import soundfile as sf
+        with tempfile.TemporaryDirectory() as tmp:
+            take_id = self._make_take(tmp)
+            dest = Path(tmp) / "export"
+            paths = storage.export_takes(
+                tmp, [take_id], str(dest), fmt="wav",
+                do_lufs_normalize=True, target_lufs=-16.0,
+            )
+            assert len(paths) == 1
+            assert Path(paths[0]).exists()
+            info = sf.info(paths[0])
+            assert info.samplerate == 44100
+
+    def test_後処理なしのwavはコピーで動作(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            take_id = self._make_take(tmp)
+            dest = Path(tmp) / "export"
+            paths = storage.export_takes(tmp, [take_id], str(dest), fmt="wav")
+            assert len(paths) == 1
+            assert Path(paths[0]).suffix.lower() == ".wav"
+
+    def test_拡張子はテンプレート適用後でも正しい(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            take_id = self._make_take(tmp)
+            dest = Path(tmp) / "export"
+            paths = storage.export_takes(
+                tmp, [take_id], str(dest),
+                name_template="{project}_{n}",
+                fmt="flac",
+            )
+            assert len(paths) == 1
+            assert Path(paths[0]).suffix.lower() == ".flac"
+
+
+class TestTakeInfoIntegratedLufs:
+    """TakeInfo.integrated_lufs の往復永続化テスト。"""
+
+    def test_integrated_lufs_が保存ロードで保持される(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            wav = Path(tmp) / "d.wav"
+            wav.write_bytes(b"RIFF\x00\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x44\xac\x00\x00\x88X\x01\x00\x02\x00\x10\x00data\x00\x00\x00\x00")
+            take = storage.add_take_from_file(tmp, str(wav))
+            assert storage.update_take_meta(tmp, take.id, integrated_lufs=-18.2) is True
+            proj = storage.load_project(tmp)
+            assert proj is not None
+            t = proj.get_take(take.id)
+            assert t is not None
+            assert t.integrated_lufs == pytest.approx(-18.2, rel=1e-3)

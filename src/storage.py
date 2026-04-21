@@ -42,6 +42,59 @@ META_FILENAME = "project_meta.json"
 TAKES_DIR = "takes"
 
 
+def get_takes_dir(project_dir: str) -> str:
+    """プロジェクト内の takes/ フォルダの絶対パスを返す（未作成でもパスを返す）。"""
+    return str(Path(project_dir) / TAKES_DIR)
+
+
+def reveal_in_file_manager(target_path: str) -> bool:
+    """
+    OS のファイルマネージャでパスを表示する。
+    - ファイルパスを渡した場合: Windows は explorer /select,<file>、macOS は open -R、
+      Linux は親ディレクトリを xdg-open で開く。
+    - ディレクトリパスを渡した場合: そのまま開く。
+    戻り値は成功したかどうか。
+    """
+    import os
+    import subprocess
+    import sys
+
+    if not target_path:
+        return False
+    path = Path(target_path)
+    if not path.exists():
+        # ファイルが消えていた場合は親フォルダで代替
+        if path.parent.exists():
+            path = path.parent
+        else:
+            return False
+
+    try:
+        if sys.platform.startswith("win"):
+            if path.is_dir():
+                os.startfile(str(path))  # type: ignore[attr-defined]
+            else:
+                # /select, と対象ファイルはカンマ直後（空白なし）に続ける
+                subprocess.Popen(
+                    ["explorer", f"/select,{str(path)}"],
+                    close_fds=True,
+                )
+            return True
+        if sys.platform == "darwin":
+            if path.is_dir():
+                subprocess.Popen(["open", str(path)])
+            else:
+                subprocess.Popen(["open", "-R", str(path)])
+            return True
+        # Linux / その他 POSIX
+        target = path if path.is_dir() else path.parent
+        subprocess.Popen(["xdg-open", str(target)])
+        return True
+    except Exception as e:  # noqa: BLE001
+        logger.warning("reveal_in_file_manager failed: %s", e)
+        return False
+
+
 def create_project(project_dir: str) -> Project:
     """
     新規プロジェクトフォルダを作成し、空の Project を返す。
@@ -83,6 +136,18 @@ def load_project(project_dir: str) -> Project | None:
     takes = []
     if meta and "takes" in meta:
         for t in meta["takes"]:
+            raw_tags = t.get("tags", [])
+            tags = [str(x) for x in raw_tags] if isinstance(raw_tags, list) else []
+            peak = t.get("peak_dbfs")
+            try:
+                peak_value = float(peak) if peak is not None else None
+            except (TypeError, ValueError):
+                peak_value = None
+            lufs_raw = t.get("integrated_lufs")
+            try:
+                lufs_value = float(lufs_raw) if lufs_raw is not None else None
+            except (TypeError, ValueError):
+                lufs_value = None
             takes.append(
                 TakeInfo(
                     id=t.get("id", ""),
@@ -93,6 +158,11 @@ def load_project(project_dir: str) -> Project | None:
                     adopted=t.get("adopted", False),
                     script_line_number=t.get("script_line_number"),
                     script_line_text=t.get("script_line_text", ""),
+                    rating=int(t.get("rating", 0) or 0),
+                    tags=tags,
+                    has_clipping=bool(t.get("has_clipping", False)),
+                    peak_dbfs=peak_value,
+                    integrated_lufs=lufs_value,
                 )
             )
     # script が無い場合は script_path を空にして不整合を防ぐ
@@ -176,8 +246,18 @@ def update_take_meta(
     memo: str | None = None,
     favorite: bool | None = None,
     adopted: bool | None = None,
+    rating: int | None = None,
+    tags: list[str] | None = None,
+    has_clipping: bool | None = None,
+    peak_dbfs: float | None = None,
+    integrated_lufs: float | None = None,
+    wav_filename: str | None = None,
 ) -> bool:
-    """テイクのメモ・お気に入り・採用をメタ JSON に反映する。adopted=True のとき他はすべて False。"""
+    """テイクのメタ（メモ・お気に入り・採用・★・タグ・クリップ情報）を JSON に反映する。
+
+    ``adopted=True`` のとき他はすべて False。``rating`` は 0〜5 に丸められる。
+    ``tags`` は空白トリムと重複除去を行う。``peak_dbfs`` は None または数値。
+    """
     proj = load_project(project_dir)
     if proj is None:
         return False
@@ -190,8 +270,104 @@ def update_take_meta(
         t.favorite = favorite
     if adopted is not None:
         proj.update_take_adopted(take_id, adopted)
+    if rating is not None:
+        proj.update_take_rating(take_id, rating)
+    if tags is not None:
+        proj.update_take_tags(take_id, tags)
+    if has_clipping is not None:
+        t.has_clipping = bool(has_clipping)
+    if peak_dbfs is not None:
+        try:
+            t.peak_dbfs = float(peak_dbfs)
+        except (TypeError, ValueError):
+            pass
+    if integrated_lufs is not None:
+        try:
+            t.integrated_lufs = float(integrated_lufs)
+        except (TypeError, ValueError):
+            pass
+    if wav_filename is not None:
+        t.wav_filename = str(wav_filename)
     _save_meta(project_dir, proj)
     return True
+
+
+def update_takes_meta_bulk(
+    project_dir: str,
+    take_ids: list[str],
+    *,
+    favorite: bool | None = None,
+    rating: int | None = None,
+    add_tags: list[str] | None = None,
+    remove_tags: list[str] | None = None,
+    clear_adopted: bool = False,
+) -> int:
+    """複数テイクに一括でメタ変更を適用する。成功件数を返す。
+
+    ``add_tags`` は既存タグに追加（重複は無視）、``remove_tags`` は削除する。
+    ``clear_adopted`` は採用フラグの解除（採用付与はプロジェクト内で単一のため一括では扱わない）。
+    """
+    proj = load_project(project_dir)
+    if proj is None:
+        return 0
+    ok = 0
+    for take_id in take_ids:
+        t = proj.get_take(take_id)
+        if t is None:
+            continue
+        if favorite is not None:
+            t.favorite = bool(favorite)
+        if rating is not None:
+            t.rating = max(0, min(5, int(rating)))
+        if add_tags:
+            new_tags = list(t.tags)
+            for tag in add_tags:
+                s = str(tag).strip()
+                if s and s not in new_tags:
+                    new_tags.append(s)
+            t.tags = new_tags
+        if remove_tags:
+            t.tags = [tag for tag in t.tags if tag not in remove_tags]
+        if clear_adopted and t.adopted:
+            t.adopted = False
+        ok += 1
+    _save_meta(project_dir, proj)
+    return ok
+
+
+def analyze_wav_clipping(wav_path: str, threshold_ratio: float = 0.995) -> dict:
+    """WAV ファイルを読み、クリッピング情報を返す。
+
+    戻り値: ``{"has_clipping": bool, "peak_dbfs": float | None, "clipped_samples": int}``。
+    読み込み失敗時は全て安全側（False / None / 0）を返す。
+    """
+    import math
+    try:
+        import numpy as np
+        import soundfile as sf
+    except ImportError:
+        return {"has_clipping": False, "peak_dbfs": None, "clipped_samples": 0}
+    try:
+        data, _sr = sf.read(str(wav_path), always_2d=False)
+    except Exception:
+        return {"has_clipping": False, "peak_dbfs": None, "clipped_samples": 0}
+    if data.size == 0:
+        return {"has_clipping": False, "peak_dbfs": None, "clipped_samples": 0}
+    if data.ndim > 1:
+        mono = np.max(np.abs(data), axis=1)
+    else:
+        mono = np.abs(data)
+    peak = float(np.max(mono))
+    clipped = int(np.sum(mono >= threshold_ratio))
+    if peak > 0:
+        peak_dbfs = 20.0 * math.log10(peak)
+    else:
+        peak_dbfs = None
+    return {
+        "has_clipping": clipped >= 3,  # 単発の瞬間ピークは許容し 3 サンプル以上で判定
+        "peak_dbfs": peak_dbfs,
+        "clipped_samples": clipped,
+    }
 
 
 def get_take_wav_path(project_dir: str, wav_filename: str) -> str:
@@ -247,17 +423,59 @@ def delete_take(project_dir: str, take_id: str) -> bool:
     return True
 
 
+def format_export_filename(
+    template: str,
+    *,
+    project_name: str,
+    take: TakeInfo,
+    index: int,
+) -> str:
+    """エクスポート用の命名テンプレート解決。
+
+    利用可能なプレースホルダ:
+    ``{project}`` ``{index}`` ``{n}``（index+1 の 3 桁ゼロ埋め）``{line}``（台本行番号）
+    ``{text}`` （セリフ先頭 20 文字）``{rating}`` ``{original}``（元の wav_filename・拡張子なし）
+    """
+    original = Path(take.wav_filename).stem
+    text_preview = sanitize_for_filename((take.script_line_text or "")[:20], max_length=40)
+    line_str = str(take.script_line_number) if take.script_line_number else ""
+    try:
+        return template.format(
+            project=project_name,
+            index=index,
+            n=f"{index + 1:03d}",
+            line=line_str,
+            text=text_preview,
+            rating=take.rating or 0,
+            original=original,
+        )
+    except (KeyError, IndexError, ValueError):
+        return f"{project_name}_Take{index + 1}"
+
+
 def export_takes(
     project_dir: str,
     take_ids: list[str],
     dest_dir: str,
     *,
     use_friendly_names: bool = False,
+    name_template: str | None = None,
+    fmt: str = "wav",
+    mp3_bitrate_kbps: int = 192,
+    do_noise_reduce: bool = False,
+    do_trim_silence: bool = False,
+    do_lufs_normalize: bool = False,
+    target_lufs: float = -16.0,
 ) -> list[str]:
     """
-    指定した take_id の WAV を dest_dir にコピーする。
-    use_friendly_names=True のときファイル名を {プロジェクト名}_Take{N}.wav にする。
-    返り値はコピーしたファイルのパスリスト。
+    指定した take_id の音声を dest_dir にエクスポートする。
+
+    ``fmt`` には ``wav`` / ``flac`` / ``mp3`` を指定可能。
+    ``do_noise_reduce`` / ``do_trim_silence`` / ``do_lufs_normalize`` を有効にすると、
+    書き出し前にノイズ除去 → 無音トリム → LUFS 正規化の順でチェーン処理を行う。
+
+    ``name_template`` が与えられた場合は最優先（``{project}_{n}`` など）。
+    さもなくば ``use_friendly_names=True`` で ``{プロジェクト名}_Take{N}``。
     """
     dest = Path(dest_dir)
     dest.mkdir(parents=True, exist_ok=True)
@@ -265,6 +483,18 @@ def export_takes(
     if proj is None:
         return []
     project_name = Path(project_dir).name or "project"
+
+    fmt_lower = (fmt or "wav").lower()
+    do_post = bool(do_noise_reduce or do_trim_silence or do_lufs_normalize)
+    need_conversion = fmt_lower != "wav" or do_post
+
+    # 必要なときだけ audio_processing をロード（テストの依存を緩和）
+    ap = None
+    if need_conversion:
+        from src import audio_processing as ap  # type: ignore
+
+    ext = ap.output_extension_for(fmt_lower) if ap is not None else ".wav"
+
     copied: list[str] = []
     for idx, take_id in enumerate(take_ids):
         t = proj.get_take(take_id)
@@ -273,15 +503,33 @@ def export_takes(
         src = Path(get_take_wav_path(project_dir, t.wav_filename))
         if not src.exists():
             continue
-        if use_friendly_names:
-            out_name = f"{project_name}_Take{idx + 1}.wav"
+        if name_template:
+            base = format_export_filename(name_template, project_name=project_name, take=t, index=idx)
+            base_stem = base[:-4] if base.lower().endswith(".wav") else base
+            out_name = f"{base_stem}{ext}"
+        elif use_friendly_names:
+            out_name = f"{project_name}_Take{idx + 1}{ext}"
         else:
-            out_name = t.wav_filename
+            out_name = Path(t.wav_filename).stem + ext
         out_path = dest / out_name
         try:
-            shutil.copy2(src, out_path)
+            if need_conversion and ap is not None:
+                ap.apply_post_processing(
+                    str(src),
+                    str(out_path),
+                    do_noise_reduce=do_noise_reduce,
+                    do_trim_silence=do_trim_silence,
+                    do_lufs_normalize=do_lufs_normalize,
+                    target_lufs=target_lufs,
+                    fmt=fmt_lower,
+                    mp3_bitrate_kbps=mp3_bitrate_kbps,
+                )
+            else:
+                shutil.copy2(src, out_path)
         except OSError as e:
-            raise OSError(f"エクスポート先へのコピーに失敗しました: {out_path}\n{e}") from e
+            raise OSError(f"エクスポート先への書き出しに失敗しました: {out_path}\n{e}") from e
+        except Exception as e:  # 処理ライブラリ由来の例外も OSError として拾う
+            raise OSError(f"エクスポート処理に失敗しました: {out_path}\n{e}") from e
         copied.append(str(out_path))
     return copied
 
@@ -313,6 +561,11 @@ def _save_meta(project_dir: str, proj: Project) -> None:
                 "adopted": t.adopted,
                 "script_line_number": t.script_line_number,
                 "script_line_text": t.script_line_text,
+                "rating": t.rating,
+                "tags": list(t.tags),
+                "has_clipping": t.has_clipping,
+                "peak_dbfs": t.peak_dbfs,
+                "integrated_lufs": t.integrated_lufs,
             }
             for t in proj.takes
         ],

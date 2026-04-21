@@ -18,6 +18,11 @@ class TakeInfo:
     adopted: bool = False
     script_line_number: int | None = None  # 台本の何行目に対応するか（1-based、紐付け用）
     script_line_text: str = ""  # 録音時点のセリフテキスト（表示・ファイル名用）
+    rating: int = 0  # 0=未評価、1〜5 の星評価
+    tags: list[str] = field(default_factory=list)  # 自由ラベル（色タグ等も文字列で格納）
+    has_clipping: bool = False  # 録音がクリップしていたか（D2）
+    peak_dbfs: float | None = None  # 解析時の最大ピーク dBFS（-inf は None）
+    integrated_lufs: float | None = None  # BS.1770 統合ラウドネス（-inf/短すぎは None）
 
     def display_name(self, index: int | None = None) -> str:
         """一覧表示用。index を渡すと 'Take 1  02/19 14:32  「セリフ」' 形式、否則 wav_filename。"""
@@ -90,6 +95,36 @@ class Project:
         else:
             t.adopted = False
         return True
+
+    def update_take_rating(self, take_id: str, rating: int) -> bool:
+        """テイクの星評価を 0〜5 で更新する。"""
+        t = self.get_take(take_id)
+        if t is None:
+            return False
+        t.rating = max(0, min(5, int(rating)))
+        return True
+
+    def update_take_tags(self, take_id: str, tags: list[str]) -> bool:
+        """テイクのタグを更新する。重複除去と空白トリムを行う。"""
+        t = self.get_take(take_id)
+        if t is None:
+            return False
+        cleaned: list[str] = []
+        for tag in tags or []:
+            s = str(tag).strip()
+            if s and s not in cleaned:
+                cleaned.append(s)
+        t.tags = cleaned
+        return True
+
+    def all_tags(self) -> list[str]:
+        """プロジェクト内で使われているタグの一覧（出現順、重複なし）。"""
+        seen: list[str] = []
+        for t in self.takes:
+            for tag in t.tags:
+                if tag not in seen:
+                    seen.append(tag)
+        return seen
 
     def get_adopted_take(self) -> TakeInfo | None:
         """採用されているテイクを返す。"""

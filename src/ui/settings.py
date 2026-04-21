@@ -35,6 +35,35 @@ def set_script_font_size(size: int) -> None:
     get_settings().setValue("script_font_size", size)
 
 
+def get_app_font_size() -> int:
+    """
+    アプリ全体フォントの pt サイズ。
+
+    0 = システム既定（上書きしない）。それ以外は 8〜24 にクランプして返す。
+    """
+    v = get_settings().value("app_font_size", 0, type=int)
+    try:
+        v = int(v)
+    except (TypeError, ValueError):
+        return 0
+    if v <= 0:
+        return 0
+    return max(8, min(24, v))
+
+
+def set_app_font_size(size: int) -> None:
+    """アプリ全体フォントの pt サイズを保存する。0 は上書き解除。"""
+    try:
+        size = int(size)
+    except (TypeError, ValueError):
+        size = 0
+    if size <= 0:
+        size = 0
+    else:
+        size = max(8, min(24, size))
+    get_settings().setValue("app_font_size", size)
+
+
 def get_recent_projects() -> list[str]:
     """最近開いたプロジェクトのパスリスト。QSettings の型揺れを正規化する。"""
     v = get_settings().value("recent_projects", [])
@@ -213,6 +242,40 @@ def set_last_session_project_path(path: str | None) -> None:
     get_settings().setValue("last_session_project_path", path or "")
 
 
+def get_preroll_seconds() -> int:
+    """録音開始前のカウントダウン秒数。0/3/5 のいずれか。既定は 0（無効）。"""
+    v = get_settings().value("preroll_seconds", 0, type=int)
+    if v in (0, 3, 5):
+        return v
+    return 0
+
+
+def set_preroll_seconds(value: int) -> None:
+    get_settings().setValue("preroll_seconds", int(value) if value in (0, 3, 5) else 0)
+
+
+def get_level_meter_enabled() -> bool:
+    """録音/再生コントロールの上に常時レベルメーターを表示するか。"""
+    return get_settings().value("level_meter_enabled", True, type=bool)
+
+
+def set_level_meter_enabled(value: bool) -> None:
+    get_settings().setValue("level_meter_enabled", bool(value))
+
+
+def get_export_name_template() -> str:
+    """エクスポート時のファイル名テンプレート。空文字は「テンプレート未使用」扱い。
+
+    例: ``{project}_{n}_{text}``。既定は空。
+    """
+    v = get_settings().value("export_name_template", "", type=str)
+    return v or ""
+
+
+def set_export_name_template(value: str) -> None:
+    get_settings().setValue("export_name_template", value or "")
+
+
 def get_main_window_splitter_sizes() -> list[int]:
     """メインウィンドウのスプリッター（台本|テイク）のサイズ。未設定は空リスト。要素は int に正規化。"""
     v = get_settings().value("main_window_splitter_sizes", [])
@@ -227,3 +290,110 @@ def get_main_window_splitter_sizes() -> list[int]:
 def set_main_window_splitter_sizes(sizes: list[int]) -> None:
     """スプリッターのサイズを保存する。"""
     get_settings().setValue("main_window_splitter_sizes", sizes)
+
+
+# ---------- 後処理・フォーマット（A/B/C 実装分） ----------
+
+_LUFS_ALLOWED = (-14.0, -16.0, -18.0, -23.0)
+
+
+def get_lufs_target() -> float:
+    """
+    エクスポート時の LUFS 目標値。既定は -16.0（YouTube/Spotify 相当）。
+    許容値: -14.0（Apple Music）, -16.0, -18.0, -23.0（放送）。
+    """
+    v = get_settings().value("lufs_target", -16.0, type=float)
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return -16.0
+    for allowed in _LUFS_ALLOWED:
+        if abs(v - allowed) < 0.01:
+            return allowed
+    return -16.0
+
+
+def set_lufs_target(value: float) -> None:
+    """LUFS 目標値を保存する。許容値外は -16.0 にフォールバック。"""
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        v = -16.0
+    matched = -16.0
+    for allowed in _LUFS_ALLOWED:
+        if abs(v - allowed) < 0.01:
+            matched = allowed
+            break
+    get_settings().setValue("lufs_target", matched)
+
+
+def get_auto_analyze_lufs() -> bool:
+    """録音直後に LUFS を自動解析するか。既定 True。"""
+    return get_settings().value("auto_analyze_lufs", True, type=bool)
+
+
+def set_auto_analyze_lufs(value: bool) -> None:
+    get_settings().setValue("auto_analyze_lufs", bool(value))
+
+
+_MP3_BITRATES_ALLOWED = (128, 192, 256, 320)
+
+
+def get_mp3_bitrate() -> int:
+    """MP3 エクスポートのビットレート（kbps）。既定 192。"""
+    v = get_settings().value("mp3_bitrate", 192, type=int)
+    try:
+        v = int(v)
+    except (TypeError, ValueError):
+        return 192
+    return v if v in _MP3_BITRATES_ALLOWED else 192
+
+
+def set_mp3_bitrate(value: int) -> None:
+    try:
+        v = int(value)
+    except (TypeError, ValueError):
+        v = 192
+    if v not in _MP3_BITRATES_ALLOWED:
+        v = 192
+    get_settings().setValue("mp3_bitrate", v)
+
+
+def get_export_format() -> str:
+    """エクスポートのデフォルトフォーマット。wav/flac/mp3。"""
+    v = get_settings().value("export_format", "wav", type=str)
+    return v if v in ("wav", "flac", "mp3") else "wav"
+
+
+def set_export_format(value: str) -> None:
+    v = (value or "wav").lower()
+    if v not in ("wav", "flac", "mp3"):
+        v = "wav"
+    get_settings().setValue("export_format", v)
+
+
+def get_export_apply_lufs() -> bool:
+    """エクスポートダイアログで LUFS 正規化を既定でONにするか。"""
+    return get_settings().value("export_apply_lufs", False, type=bool)
+
+
+def set_export_apply_lufs(value: bool) -> None:
+    get_settings().setValue("export_apply_lufs", bool(value))
+
+
+def get_export_apply_trim_silence() -> bool:
+    """エクスポートダイアログで無音トリムを既定でONにするか。"""
+    return get_settings().value("export_apply_trim", False, type=bool)
+
+
+def set_export_apply_trim_silence(value: bool) -> None:
+    get_settings().setValue("export_apply_trim", bool(value))
+
+
+def get_export_apply_noise_reduce() -> bool:
+    """エクスポートダイアログでノイズ除去を既定でONにするか。"""
+    return get_settings().value("export_apply_noise", False, type=bool)
+
+
+def set_export_apply_noise_reduce(value: bool) -> None:
+    get_settings().setValue("export_apply_noise", bool(value))

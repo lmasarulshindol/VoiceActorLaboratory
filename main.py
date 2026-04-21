@@ -14,11 +14,14 @@ from PyQt6.QtWidgets import QApplication
 from src.ui.main_window import MainWindow
 from src.ui.settings import get_theme
 from src.ui.theme_loader import apply_app_theme
+from src.ui.app_font import remember_default_app_font, apply_from_settings as apply_app_font_from_settings
 
 
 def main() -> None:
     app = QApplication(sys.argv)
+    remember_default_app_font()
     apply_app_theme(get_theme())
+    apply_app_font_from_settings()
     window = MainWindow()
     window.show()
     sys.exit(app.exec())

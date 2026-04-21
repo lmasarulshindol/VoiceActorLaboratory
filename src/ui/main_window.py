@@ -1,6 +1,8 @@
 """
 メインウィンドウ。台本エリア・録音ボタン・テイク一覧を表示する。
 """
+import math
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -41,6 +43,7 @@ from PyQt6.QtWidgets import (
     QFrame,
     QGraphicsDropShadowEffect,
     QSizePolicy,
+    QTextBrowser,
 )
 
 from src.project import Project, TakeInfo
@@ -81,11 +84,34 @@ from src.ui.settings import (
     get_take_list_sort,
     set_take_list_sort,
     get_confirm_before_delete_take,
+    get_preroll_seconds,
+    set_preroll_seconds,
+    get_level_meter_enabled,
+    set_level_meter_enabled,
+    get_export_name_template,
+    set_export_name_template,
+    get_lufs_target,
+    set_lufs_target,
+    get_auto_analyze_lufs,
+    set_auto_analyze_lufs,
+    get_mp3_bitrate,
+    set_mp3_bitrate,
+    get_export_format,
+    set_export_format,
+    get_export_apply_lufs,
+    set_export_apply_lufs,
+    get_export_apply_trim_silence,
+    set_export_apply_trim_silence,
+    get_export_apply_noise_reduce,
+    set_export_apply_noise_reduce,
 )
 from src.ui.waveform_widget import WaveformWidget
 from src.ui.settings_dialog import SettingsDialog
 from src.ui.find_replace_dialog import FindReplaceDialog
 from src.ui.script_edit_with_line_numbers import ScriptEditWithLineNumbers
+from src.ui.level_meter import LevelMeterWidget
+from src.ui.preroll_overlay import PrerollOverlay
+from src.ui.record_button import RecordButton
 from src.ui.theme_colors import (
     CARD_BG_DARK,
     CARD_BORDER_DARK,
@@ -141,6 +167,8 @@ class MainWindow(QMainWindow):
         self._theme_applied_on_show = False  # 初回表示時にテーマを再適用するため
         self._last_added_take_id: str | None = None  # 最後に追加されたテイクID
         self._new_take_ids: set[str] = set()  # NEWバッジを表示するテイクIDのセット
+        self._syncing_script_cursor: bool = False  # 台本⇄テイク一覧の同期ループガード
+        self._last_synced_script_line: int | None = None  # 直近に同期済みのカーソル行
         self._new_take_timer = QTimer(self)  # NEWバッジの自動削除用タイマー
         self._new_take_timer.setSingleShot(True)
         self._new_take_timer.timeout.connect(self._clear_new_badges)
@@ -148,6 +176,8 @@ class MainWindow(QMainWindow):
         self._recording_blink_state = False  # 録音ボタンの点滅状態
         self._recording_blink_timer.timeout.connect(self._on_recording_blink_tick)
         self._ab_compare_queue: list[str] = []  # A/B比較で連続再生するテイクIDのキュー
+        self._level_meter_timer = QTimer(self)  # A1: マイクレベルメーターの更新タイマー
+        self._level_meter_timer.timeout.connect(self._on_level_meter_tick)
         self._build_ui()
         self._setup_shortcuts()
         geo = get_main_window_geometry()
@@ -166,6 +196,13 @@ class MainWindow(QMainWindow):
         if not self._theme_applied_on_show:
             self._theme_applied_on_show = True
             self._apply_theme(get_theme())
+        # A1: レベルメーター開始（初回表示時のみ、設定が ON の場合）
+        if get_level_meter_enabled() and not self._level_meter_timer.isActive():
+            if self._recorder.start_monitoring():
+                self._level_meter_timer.start(50)
+            # 録音中は録音ストリーム側が更新するのでタイマのみでもOK
+            else:
+                self._level_meter_timer.start(50)
 
     def _build_ui(self) -> None:
         self.setWindowTitle("Voice Actor Laboratory")
@@ -214,6 +251,26 @@ class MainWindow(QMainWindow):
         act_export.setToolTip("エクスポート … テイクをWAVファイルとして保存先にコピー")
         act_export.triggered.connect(self._on_export_takes)
         toolbar.addAction(act_export)
+        # G1: 採用テイクをワンクリックで納品
+        act_export_adopted = QAction(
+            style.standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton),
+            "採用テイクを一括納品",
+            self,
+        )
+        act_export_adopted.setToolTip("採用テイクのみを前回の保存先にワンクリックで書き出します")
+        act_export_adopted.triggered.connect(self._on_export_adopted_oneclick)
+        toolbar.addAction(act_export_adopted)
+        self._act_export_adopted = act_export_adopted
+        # 保存フォルダをエクスプローラーで開く
+        act_reveal_takes = QAction(
+            style.standardIcon(QStyle.StandardPixmap.SP_DirIcon),
+            "保存フォルダを開く",
+            self,
+        )
+        act_reveal_takes.setToolTip("録音したWAVが保存されている takes フォルダをOSのファイルマネージャで開きます")
+        act_reveal_takes.triggered.connect(self._on_reveal_takes_folder)
+        toolbar.addAction(act_reveal_takes)
+        self._act_reveal_takes = act_reveal_takes
 
         # メニュー
         menubar = self.menuBar()
@@ -224,6 +281,10 @@ class MainWindow(QMainWindow):
         file_menu.addAction(act_new_script)
         file_menu.addAction(act_save_script)
         file_menu.addAction(act_export)
+        file_menu.addAction(act_export_adopted)
+        file_menu.addSeparator()
+        file_menu.addAction(act_reveal_takes)
+        file_menu.addSeparator()
         self._recent_menu = file_menu.addMenu("最近開いたプロジェクト")
         edit_menu = menubar.addMenu("編集")
         act_find = QAction("検索...", self)
@@ -245,6 +306,10 @@ class MainWindow(QMainWindow):
         act_shortcuts.setToolTip("ショートカット一覧を表示")
         act_shortcuts.triggered.connect(self._on_show_shortcuts)
         help_menu.addAction(act_shortcuts)
+        act_glossary = QAction("用語解説（LUFS・dBFSなど）", self)
+        act_glossary.setToolTip("アプリ内で使われている音響用語の意味を一覧で表示")
+        act_glossary.triggered.connect(self._on_show_glossary)
+        help_menu.addAction(act_glossary)
         help_menu.addSeparator()
         act_restart = QAction("アプリを再起動", self)
         act_restart.setToolTip("アプリケーションを再起動します")
@@ -266,8 +331,9 @@ class MainWindow(QMainWindow):
         view_menu.addAction(act_settings)
         view_menu.addSeparator()
         self._font_spin = QSpinBox()
-        self._font_spin.setRange(12, 24)
+        self._font_spin.setRange(8, 24)
         self._font_spin.setValue(get_script_font_size())
+        self._font_spin.setToolTip("台本フォントサイズ（8〜24pt）")
         self._font_spin.valueChanged.connect(self._on_script_font_size_changed)
         font_action = QWidgetAction(self)
         font_action.setDefaultWidget(self._font_spin)
@@ -404,6 +470,7 @@ class MainWindow(QMainWindow):
         self._script_edit.cursorPositionChanged.connect(self._highlight_current_line)
         self._script_edit.cursorPositionChanged.connect(self._update_current_line_preview)
         self._script_edit.cursorPositionChanged.connect(self._update_status_script_position)
+        self._script_edit.cursorPositionChanged.connect(self._on_script_cursor_line_changed)
         self._script_edit.textChanged.connect(self._update_window_title)
         script_layout.addWidget(self._script_container)
         
@@ -492,7 +559,8 @@ class MainWindow(QMainWindow):
         control_frame = QFrame()
         control_frame.setObjectName("controlPanel")
         control_frame.setFrameShape(QFrame.Shape.StyledPanel)
-        control_frame.setFixedHeight(180)
+        # レベルメーター行を足したため固定高は廃止し、最小高のみ指定
+        control_frame.setMinimumHeight(200)
         control_layout = QHBoxLayout(control_frame)
         control_layout.setContentsMargins(16, 12, 16, 12)
         control_layout.setSpacing(20)
@@ -519,9 +587,7 @@ class MainWindow(QMainWindow):
         rec_controls_row.addWidget(self._record_mode_combo)
         rec_controls_row.addSpacing(8)
         
-        self._record_toggle_btn = QPushButton("●")
-        self._record_toggle_btn.setObjectName("recordToggleBtn")
-        self._record_toggle_btn.setFixedSize(50, 50)
+        self._record_toggle_btn = RecordButton()
         self._record_toggle_btn.setToolTip("録音開始 … 録音を開始（F9）")
         self._record_toggle_btn.setAccessibleName("録音開始")
         self._record_toggle_btn.clicked.connect(self._on_record_toggle)
@@ -550,6 +616,17 @@ class MainWindow(QMainWindow):
         
         rec_controls_row.addStretch()
         rec_group.addLayout(rec_controls_row)
+        # A1: マイク入力レベルメーター
+        meter_row = QHBoxLayout()
+        meter_row.setSpacing(6)
+        meter_label = QLabel("入力:")
+        meter_label.setObjectName("caption")
+        meter_row.addWidget(meter_label)
+        self._level_meter = LevelMeterWidget()
+        self._level_meter.setVisible(get_level_meter_enabled())
+        self._level_meter.setMinimumWidth(160)
+        meter_row.addWidget(self._level_meter, 1)
+        rec_group.addLayout(meter_row)
         control_layout.addLayout(rec_group)
 
         # 中央: 波形表示（録音・再生を切り替え表示）
@@ -685,6 +762,8 @@ class MainWindow(QMainWindow):
         root_layout.addWidget(self._stacked, 1)
         self.setCentralWidget(root)
         self._stacked.setCurrentIndex(0)  # 起動時は「はじめに」
+        # A2: プリロールカウントダウンオーバーレイ（Central Widget の上に被せる）
+        self._preroll_overlay = PrerollOverlay(root)
 
         # コンテキストメニュー
         self._take_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -805,6 +884,10 @@ class MainWindow(QMainWindow):
         device_id = self._input_device_combo.itemData(index)
         set_input_device_id(device_id)
         self._recorder.set_input_device(device_id)
+        # A1: モニターが走っていればデバイス変更後に再起動
+        if get_level_meter_enabled() and not self._recorder.is_recording:
+            self._recorder.stop_monitoring()
+            self._recorder.start_monitoring()
 
     def _on_recording_mode_changed(self, index: int) -> None:
         mode = self._record_mode_combo.itemData(index)
@@ -873,26 +956,89 @@ class MainWindow(QMainWindow):
         sizes = self._main_splitter.sizes()
         if len(sizes) == 2:
             set_main_window_splitter_sizes(sizes)
+        # A1: 終了時にレベルメーターとモニターストリームを停止
+        try:
+            self._level_meter_timer.stop()
+            self._recorder.stop_monitoring()
+        except Exception:
+            pass
         super().closeEvent(event)
 
     def _setup_shortcuts(self) -> None:
-        """録音 F9/Ctrl+R/R・停止 F10。再生 Space/P・左右シーク。テイク一覧でDelete削除・Enter再生。Ctrl+矢印でテイク移動。"""
+        """録音 F9/Ctrl+R・停止 F10。再生 Space/P・左右シーク。テイク一覧で Delete 削除・Enter 再生。
+
+        F1 修正: 単一キー（R/P/Space/矢印）は台本エディタにフォーカスがある時は発火させない
+        （``_should_handle_single_key_shortcut`` のガードで弾く）。F9/F10/Ctrl+R 等は常時有効。
+        """
+        # 常時有効（ファンクションキー・Ctrl 修飾あり）
         QShortcut(QKeySequence("F9"), self, self._on_record_toggle)
         QShortcut(QKeySequence("Ctrl+R"), self, self._on_record_toggle)
-        QShortcut(QKeySequence(Qt.Key.Key_R), self, self._on_record_toggle)  # Rキーで録音開始/停止
         QShortcut(QKeySequence("F10"), self, self._on_record_stop)
         QShortcut(QKeySequence("Ctrl+Shift+R"), self, self._on_record_stop)
-        QShortcut(QKeySequence(Qt.Key.Key_Space), self, self._on_play_pause_toggle)
-        QShortcut(QKeySequence(Qt.Key.Key_P), self, self._on_play_pause_toggle)  # Pキーで再生/一時停止
-        QShortcut(QKeySequence(Qt.Key.Key_Left), self, self._on_seek_backward)
-        QShortcut(QKeySequence(Qt.Key.Key_Right), self, self._on_seek_forward)
-        QShortcut(QKeySequence(Qt.Key.Key_Delete), self._take_list, self._on_take_list_delete_key)
-        QShortcut(QKeySequence(Qt.Key.Key_Return), self._take_list, self._on_take_list_enter_play)
-        QShortcut(QKeySequence(Qt.Key.Key_Enter), self._take_list, self._on_take_list_enter_play)
-        # Ctrl+矢印でテイク一覧の移動
+        # Ctrl+矢印でテイク一覧の移動（常時）
         QShortcut(QKeySequence("Ctrl+Right"), self, self._on_take_list_next)
         QShortcut(QKeySequence("Ctrl+Left"), self, self._on_take_list_prev)
+        # 単一キー系は台本編集中は無効化するためのガード付きで登録
+        QShortcut(QKeySequence(Qt.Key.Key_R), self, self._sk_record_toggle)
+        QShortcut(QKeySequence(Qt.Key.Key_Space), self, self._sk_play_pause_toggle)
+        QShortcut(QKeySequence(Qt.Key.Key_P), self, self._sk_play_pause_toggle)
+        QShortcut(QKeySequence(Qt.Key.Key_Left), self, self._sk_seek_backward)
+        QShortcut(QKeySequence(Qt.Key.Key_Right), self, self._sk_seek_forward)
+        # テイク一覧専用（WidgetShortcut: リストにフォーカスがあるときのみ発火）
+        sh_del = QShortcut(QKeySequence(Qt.Key.Key_Delete), self._take_list, self._on_take_list_delete_key)
+        sh_del.setContext(Qt.ShortcutContext.WidgetShortcut)
+        sh_ret = QShortcut(QKeySequence(Qt.Key.Key_Return), self._take_list, self._on_take_list_enter_play)
+        sh_ret.setContext(Qt.ShortcutContext.WidgetShortcut)
+        sh_enter = QShortcut(QKeySequence(Qt.Key.Key_Enter), self._take_list, self._on_take_list_enter_play)
+        sh_enter.setContext(Qt.ShortcutContext.WidgetShortcut)
         # 検索・置換はメニュー経由で _on_find / _on_replace_dialog が呼ばれる（Ctrl+F / Ctrl+H）
+
+    def _should_handle_single_key_shortcut(self) -> bool:
+        """単一キーのグローバルショートカットを処理してよいか。
+
+        台本エディタや現在行プレビュー、メモ入力ダイアログなどのテキスト入力にフォーカスがある
+        ときは単一キーの動作を奪わない（F1）。
+        """
+        app = QApplication.instance()
+        focus = app.focusWidget() if app else None
+        if focus is None:
+            return True
+        # 台本本文は QPlainTextEdit。テキスト入力全般を除外。
+        if isinstance(focus, (QPlainTextEdit,)):
+            return False
+        try:
+            from PyQt6.QtWidgets import QLineEdit, QTextEdit
+            if isinstance(focus, (QLineEdit, QTextEdit)):
+                return False
+        except Exception:
+            pass
+        return True
+
+    def _sk_record_toggle(self) -> None:
+        if self._should_handle_single_key_shortcut():
+            self._on_record_toggle()
+
+    def _sk_play_pause_toggle(self) -> None:
+        if self._should_handle_single_key_shortcut():
+            self._on_play_pause_toggle()
+
+    def _sk_seek_backward(self) -> None:
+        if self._should_handle_single_key_shortcut():
+            self._on_seek_backward()
+
+    def _sk_seek_forward(self) -> None:
+        if self._should_handle_single_key_shortcut():
+            self._on_seek_forward()
+
+    def _on_level_meter_tick(self) -> None:
+        """A1: レベルメーターを定期更新する。"""
+        if not hasattr(self, "_level_meter") or not self._level_meter.isVisible():
+            return
+        try:
+            peak, rms = self._recorder.get_monitor_levels()
+        except Exception:
+            peak, rms = 0.0, 0.0
+        self._level_meter.set_levels(peak, rms)
 
     def _format_duration(self, seconds: float) -> str:
         m = int(seconds // 60)
@@ -923,25 +1069,36 @@ class MainWindow(QMainWindow):
         paused = self._recorder.is_paused
         # 録音トグル: 未録音＝赤丸(開始)、録音中＝一時停止、一時停止中＝赤丸(再開)
         self._record_toggle_btn.setEnabled(has_project)
-        if not rec:
-            self._record_toggle_btn.setText("●")
-            self._record_toggle_btn.setToolTip("録音開始 … 録音を開始（F9）")
-            # 録音停止時は点滅を停止
+        if isinstance(self._record_toggle_btn, RecordButton):
+            # E4: 新しい RecordButton は内部で脈動アニメを制御
+            self._record_toggle_btn.set_recording(rec, paused=paused)
+            if not rec:
+                self._record_toggle_btn.setToolTip("録音開始 … 録音を開始（F9）")
+            elif paused:
+                self._record_toggle_btn.setToolTip("録音再開 … 一時停止から再開")
+            else:
+                self._record_toggle_btn.setToolTip("一時停止 … 録音を一時停止")
+            # 旧 blink タイマーは使わない
             self._recording_blink_timer.stop()
-            self._record_toggle_btn.setStyleSheet("")  # スタイルをリセット
-        elif paused:
-            self._record_toggle_btn.setText("●")
-            self._record_toggle_btn.setToolTip("録音再開 … 一時停止から再開")
-            self._recording_blink_timer.stop()
-            self._record_toggle_btn.setStyleSheet("")  # スタイルをリセット
         else:
-            self._record_toggle_btn.setText("‖")
-            self._record_toggle_btn.setToolTip("一時停止 … 録音を一時停止")
-            # 録音中は点滅を開始
-            if not self._recording_blink_timer.isActive():
-                self._recording_blink_state = True
-                self._recording_blink_timer.start(500)  # 500ms間隔で点滅
-                self._on_recording_blink_tick()  # 即座に実行
+            # フォールバック（RecordButton 化されていない場合の後方互換）
+            if not rec:
+                self._record_toggle_btn.setText("●")
+                self._record_toggle_btn.setToolTip("録音開始 … 録音を開始（F9）")
+                self._recording_blink_timer.stop()
+                self._record_toggle_btn.setStyleSheet("")
+            elif paused:
+                self._record_toggle_btn.setText("●")
+                self._record_toggle_btn.setToolTip("録音再開 … 一時停止から再開")
+                self._recording_blink_timer.stop()
+                self._record_toggle_btn.setStyleSheet("")
+            else:
+                self._record_toggle_btn.setText("‖")
+                self._record_toggle_btn.setToolTip("一時停止 … 録音を一時停止")
+                if not self._recording_blink_timer.isActive():
+                    self._recording_blink_state = True
+                    self._recording_blink_timer.start(500)
+                    self._on_recording_blink_tick()
         self._record_stop_btn.setEnabled(rec)
         # 録音→再生ボタンの有効/無効を更新
         if hasattr(self, '_record_and_play_btn'):
@@ -1075,10 +1232,21 @@ class MainWindow(QMainWindow):
             fav = "★ " if t.favorite else ""
             new_badge = "🆕 " if t.id in self._new_take_ids else ""
             adopted = "  [採用]" if t.adopted else ""
+            # B1: 星評価の表示（1〜5）
+            rating_str = f"  {'★' * t.rating}{'☆' * (5 - t.rating)}" if getattr(t, "rating", 0) else ""
+            # B1: タグ（最大 3 件まで表示）
+            tag_preview = ""
+            if getattr(t, "tags", None):
+                tag_preview = "  " + " ".join(f"#{g}" for g in list(t.tags)[:3])
+            # D2: クリッピング警告バッジ
+            clip_badge = " ⚠" if getattr(t, "has_clipping", False) else ""
+            # A: LUFS バッジ（解析済みのテイクのみ）
+            lufs_val = getattr(t, "integrated_lufs", None)
+            lufs_badge = f"  {lufs_val:.1f}LUFS" if isinstance(lufs_val, float) and math.isfinite(lufs_val) else ""
             dur_sec = storage.get_wav_duration_seconds(self._project.project_dir, t.wav_filename)
             dur_str = f"  {self._format_duration(dur_sec)}" if dur_sec > 0 else ""
             memo_str = f"  {t.memo}" if t.memo else ""
-            line = f"{new_badge}{fav}{t.display_name(i)}{dur_str}{memo_str}{adopted}"
+            line = f"{new_badge}{fav}{t.display_name(i)}{dur_str}{rating_str}{lufs_badge}{tag_preview}{memo_str}{adopted}{clip_badge}"
             item = QListWidgetItem(line)
             item.setData(Qt.ItemDataRole.UserRole, t.id)
             tooltip_parts = []
@@ -1093,6 +1261,16 @@ class MainWindow(QMainWindow):
                 tooltip_parts.append("★ お気に入り")
             if t.adopted:
                 tooltip_parts.append("✓ 採用済み")
+            if getattr(t, "rating", 0):
+                tooltip_parts.append(f"★ 評価: {t.rating} / 5")
+            if getattr(t, "tags", None):
+                tooltip_parts.append("タグ: " + ", ".join(t.tags))
+            if getattr(t, "has_clipping", False):
+                peak_db = getattr(t, "peak_dbfs", None)
+                if isinstance(peak_db, float):
+                    tooltip_parts.append(f"⚠ クリップ検出（ピーク {peak_db:.1f} dBFS）")
+                else:
+                    tooltip_parts.append("⚠ クリップ検出")
             item.setToolTip("\n".join(tooltip_parts))
             self._take_list.addItem(item)
 
@@ -1117,6 +1295,23 @@ class MainWindow(QMainWindow):
         else:
             self._take_list_hint.setText("録音開始でテイクが追加されます")
         self._refresh_take_list_highlight()
+        # C1: 台本ガターのテイク数・採用マーカーを更新
+        self._refresh_script_line_indicators()
+
+    def _refresh_script_line_indicators(self) -> None:
+        """C1: 台本の行番号ガターにテイク数・採用マーカーを描画するための集計。"""
+        counts: dict[int, int] = {}
+        adopted_lines: set[int] = set()
+        for t in self._project.takes:
+            line = getattr(t, "script_line_number", None)
+            if isinstance(line, int) and line > 0:
+                counts[line] = counts.get(line, 0) + 1
+                if t.adopted:
+                    adopted_lines.add(line)
+        try:
+            self._script_container.set_line_take_info(counts, adopted_lines)
+        except Exception:
+            pass
 
     def _clear_new_badges(self) -> None:
         """NEWバッジをクリアしてテイク一覧を再描画。"""
@@ -1149,6 +1344,8 @@ class MainWindow(QMainWindow):
         dark = theme == "dark"
         self._record_waveform.set_dark_theme(dark)
         self._playback_waveform.set_dark_theme(dark)
+        if hasattr(self, "_level_meter"):
+            self._level_meter.set_dark_theme(dark)
         self._refresh_take_list_highlight()
         for frame in self.findChildren(QFrame):
             if frame.objectName() == "welcomeCard":
@@ -1163,11 +1360,32 @@ class MainWindow(QMainWindow):
                     frame.setGraphicsEffect(shadow)
 
     def _apply_script_font_size(self, size: int) -> None:
+        """台本エディタと行番号ガターに指定 pt のフォントを適用する。
+
+        QApplication.setFont(...) 後にも値が維持されるよう、明示的に
+        新しい QFont を生成し、ガター幅も再計算する。
+        """
         from PyQt6.QtGui import QFont
-        f = self._script_edit.font()
-        f.setPointSize(size)
-        self._script_edit.setFont(f)
-        self._script_container.line_number_area().setFont(f)
+        # 現在の有効フォントをベースにしつつ、全属性を明示にするため QFont() で複製する
+        base = QFont(self._script_edit.font())
+        base.setPointSize(int(size))
+        self._script_edit.setFont(base)
+        self._script_container.line_number_area().setFont(base)
+        # フォント変更後は行番号エリアの幅を再計算する
+        try:
+            self._script_container.refresh_line_number_area_width()
+        except Exception:
+            pass
+        # View メニューのスピンボックスと値を同期（ループ回避のため signals ブロック）
+        try:
+            if hasattr(self, "_font_spin") and self._font_spin.value() != int(size):
+                self._font_spin.blockSignals(True)
+                try:
+                    self._font_spin.setValue(int(size))
+                finally:
+                    self._font_spin.blockSignals(False)
+        except Exception:
+            pass
 
     def _on_script_font_size_changed(self, value: int) -> None:
         set_script_font_size(value)
@@ -1435,7 +1653,8 @@ class MainWindow(QMainWindow):
             "3. 録音 … 「録音開始」（F9）→「録音停止」で1テイク追加\n"
             "4. 再生 … テイク一覧でダブルクリックで再生\n\n"
             "※ 録音モード「台本一括」は見出しごとに連番、「セリフ個別」はカーソル行のセリフをファイル名に使います。\n"
-            "※ 既存のプロジェクトは「開く」または「最近開いたプロジェクト」から。"
+            "※ 既存のプロジェクトは「開く」または「最近開いたプロジェクト」から。\n"
+            "※ LUFS / dBFS など音まわりの用語は「ヘルプ → 用語解説」で確認できます。"
         )
         QMessageBox.information(self, "使い方", text)
 
@@ -1467,6 +1686,88 @@ class MainWindow(QMainWindow):
         te.setReadOnly(True)
         te.setMinimumSize(400, 320)
         layout.addWidget(te)
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
+        bb.accepted.connect(dlg.accept)
+        layout.addWidget(bb)
+        dlg.exec()
+
+    def _on_show_glossary(self) -> None:
+        """ヘルプ「用語解説」: アプリ内の音響用語をまとめて表示する。"""
+        html = """
+<h2 style="margin-top:0">用語解説（音まわりの言葉）</h2>
+<p>本アプリで登場する用語を、ざっくりした意味から順に説明します。</p>
+
+<h3>🔊 LUFS（ラウドネス）</h3>
+<p><b>LUFS</b> = <i>Loudness Units relative to Full Scale</i>。人の耳で感じる音の「大きさ」を数値化した国際基準（ITU-R BS.1770 / EBU R128）です。
+値はマイナスで、<b>0 に近いほど大きい音</b>。</p>
+<ul>
+  <li><b>-14 LUFS</b> … Apple Music の目安</li>
+  <li><b>-16 LUFS</b> … YouTube / Spotify / Podcast の一般的な目安 <b>（本アプリの既定値）</b></li>
+  <li><b>-23 LUFS</b> … テレビ放送（EBU R128）の基準</li>
+  <li><b>-24 LUFS</b> … 米国テレビ放送（ATSC A/85）の基準</li>
+</ul>
+<p>ピーク（最大瞬間音量）ではなく、曲全体の<b>平均的な聴感音量</b>を測るのがポイント。
+「-16 LUFS に揃える」とは、ほかの音声と音の大きさをそろえて、<b>提出先で勝手に音量を下げられないようにする</b>作業です。</p>
+
+<h3>📏 dBFS（デシベル・フルスケール）</h3>
+<p>デジタル音声の<b>瞬間的な大きさ</b>の単位。上限が 0 dBFS（=フルスケール）で、普通はマイナス方向で表記します。</p>
+<ul>
+  <li><b>0 dBFS</b> … これ以上大きくできない天井。超えると「クリップ」して音が割れる</li>
+  <li><b>-1 dBFS</b>（True Peak 天井）… 配信プラットフォームで推奨される安全マージン</li>
+  <li><b>-6 〜 -12 dBFS</b> … 収録時のピーク目安（赤ゾーン手前）</li>
+</ul>
+<p>本アプリのテイク一覧にある「⚠」は、録音時に <b>0 dBFS</b> にぶつかった（クリップした）サインです。</p>
+
+<h3>🎚️ ピーク / RMS</h3>
+<ul>
+  <li><b>ピーク（Peak）</b> … その瞬間の最大値。クリップ検出はピーク基準</li>
+  <li><b>RMS</b> … 一定時間の<b>平均的な</b>エネルギー。聴感の大きさに近い</li>
+</ul>
+<p>録音画面上部のレベルメーターは、上段がピーク、下段が RMS を表示しています。</p>
+
+<h3>🎛️ ラウドネス正規化（Normalize）</h3>
+<p>録音したテイクの LUFS を測り、<b>目標値（例: -16 LUFS）に合うように全体を均一に音量調整</b>すること。
+エクスポートダイアログで ON にすると、書き出し時に自動で適用されます。
+ピークが天井（既定 -1 dBFS）を超えそうな場合は、その分だけ控えめに調整されます。</p>
+
+<h3>🌬️ ノイズ除去（Noise Reduction）</h3>
+<p>エアコン音・PC のファン音・ヒスノイズなど、声以外の「定常的な雑音」を減らす処理。
+本アプリでは、音声の<b>先頭 0.5 秒をノイズの見本</b>とみなし、スペクトルサブトラクションで削ります。
+強く掛けすぎると声が痩せるので、軽めの設定（prop_decrease=0.85）で動かしています。</p>
+
+<h3>🤫 無音トリム（Silence Trim）</h3>
+<p>テイクの<b>先頭と末尾の無音</b>をカットする処理。しきい値は <b>-45 dBFS</b>（ほぼ聞こえないくらい静か）。
+前後に 80 ms の余白を残すので、自然な立ち上がり・終わりを保てます。</p>
+
+<h3>🎼 サンプルレート / ビット深度</h3>
+<ul>
+  <li><b>サンプルレート</b> … 1 秒間に音を何回サンプリングするか。本アプリは <b>44.1 kHz</b>（CD 相当）</li>
+  <li><b>ビット深度</b> … 1 サンプルの階調。本アプリは <b>16 bit PCM</b>（WAV/FLAC 書き出し）</li>
+</ul>
+
+<h3>📦 ファイル形式</h3>
+<ul>
+  <li><b>WAV</b> … 非圧縮。音質劣化なし。ファイル大きめ。スタジオ提出の標準</li>
+  <li><b>FLAC</b> … 可逆圧縮。音質劣化なし＆ WAV の約半分サイズ</li>
+  <li><b>MP3</b> … 非可逆圧縮。ファイル小。SNS や Web 配布向け。本アプリは 128〜320 kbps CBR</li>
+</ul>
+
+<h3>⏱️ プリロール / レベルメーター</h3>
+<ul>
+  <li><b>プリロール</b> … 録音ボタンを押してから実際の録音が始まるまでのカウントダウン（3 or 5 秒）</li>
+  <li><b>レベルメーター</b> … マイクからの入力音量をリアルタイムで表示する棒グラフ</li>
+</ul>
+
+<p style="color:#888; margin-top:16px;">※ 用語の目安値は 2026 年時点の主要配信プラットフォームの推奨値に基づきます。最新の基準は各サービスの仕様をご確認ください。</p>
+"""
+        dlg = QDialog(self)
+        dlg.setWindowTitle("用語解説")
+        layout = QVBoxLayout(dlg)
+        tb = QTextBrowser()
+        tb.setOpenExternalLinks(True)
+        tb.setHtml(html)
+        tb.setMinimumSize(560, 520)
+        layout.addWidget(tb)
         bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
         bb.accepted.connect(dlg.accept)
         layout.addWidget(bb)
@@ -1582,9 +1883,17 @@ class MainWindow(QMainWindow):
             )
 
     def _on_record_toggle(self) -> None:
-        """録音開始 / 一時停止 / 再開の切り替え。"""
+        """録音開始 / 一時停止 / 再開の切り替え。
+
+        録音開始時のみ、設定の ``preroll_seconds`` が 3 or 5 ならカウントダウンを挟む（A2）。
+        プリロール表示中に再度押下するとキャンセルされる。
+        """
         if not self._project.has_project_dir():
             QMessageBox.warning(self, "録音", "先にプロジェクトを新規作成するか開いてください。")
+            return
+        # プリロール中にもう一度押したらキャンセル扱い
+        if getattr(self, "_preroll_overlay", None) and self._preroll_overlay.active:
+            self._preroll_overlay.cancel()
             return
         editor_text = self._script_edit.toPlainText().replace("\r\n", "\n").replace("\r", "\n")
         project_text = (self._project.script_text or "").replace("\r\n", "\n").replace("\r", "\n")
@@ -1592,18 +1901,54 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("台本に未保存の変更があります。必要に応じて保存してから録音してください。", 5000)
         try:
             if not self._recorder.is_recording:
-                self._recorder.start()
-                self._recording_timer.start(100)
-                self._on_recording_tick()
+                preroll = get_preroll_seconds()
+                if preroll > 0:
+                    self._start_recording_with_preroll(preroll)
+                    return
+                self._start_recording_now()
             elif self._recorder.is_paused:
                 self._recorder.resume()
                 self._recording_timer.start(100)
                 self._on_recording_tick()
+                self._update_ui_state()
             else:
                 self._recorder.pause()
-            self._update_ui_state()
+                self._update_ui_state()
         except Exception as e:
             QMessageBox.warning(self, "録音エラー", str(e))
+
+    def _start_recording_now(self) -> None:
+        """プリロール無しで録音を即座に開始する。"""
+        # モニター用ストリームが動いていれば録音のため一旦止める（デバイスを譲る）
+        try:
+            self._recorder.stop_monitoring()
+        except Exception:
+            pass
+        self._recorder.start()
+        self._recording_timer.start(100)
+        self._on_recording_tick()
+        self._update_ui_state()
+
+    def _start_recording_with_preroll(self, seconds: int) -> None:
+        """A2: 指定秒数カウントダウン後に録音を開始する。"""
+        overlay = getattr(self, "_preroll_overlay", None)
+        if overlay is None:
+            self._start_recording_now()
+            return
+        if self.statusBar():
+            self.statusBar().showMessage(f"録音まで {seconds} 秒… （キャンセルは Esc / 画面クリック）")
+
+        def on_finished() -> None:
+            try:
+                self._start_recording_now()
+            except Exception as e:
+                QMessageBox.warning(self, "録音エラー", str(e))
+
+        def on_cancelled() -> None:
+            if self.statusBar():
+                self.statusBar().showMessage("録音開始をキャンセルしました", 2000)
+
+        overlay.start(seconds, on_finished=on_finished, on_cancelled=on_cancelled)
 
     def _on_record_stop(self) -> None:
         if not self._recorder.is_recording:
@@ -1612,6 +1957,7 @@ class MainWindow(QMainWindow):
         import os
         os.close(fd)
         take_added = False
+        clip_info: dict = {}
         try:
             if self._recorder.stop_and_save(tmp):
                 script_text = self._script_edit.toPlainText()
@@ -1636,6 +1982,30 @@ class MainWindow(QMainWindow):
                 except OSError as e:
                     QMessageBox.warning(self, "録音", f"テイクの保存に失敗しました: {e}")
                     return
+                # D2: 保存直後にクリッピング解析してメタに書き込む
+                try:
+                    saved_wav = storage.get_take_wav_path(self._project.project_dir, take.wav_filename)
+                    clip_info = storage.analyze_wav_clipping(saved_wav)
+                    lufs_value: float | None = None
+                    if get_auto_analyze_lufs():
+                        try:
+                            from src.audio_processing import analyze_loudness
+                            lufs_info = analyze_loudness(saved_wav)
+                            lufs_value = lufs_info.get("integrated_lufs")
+                        except Exception:  # noqa: BLE001
+                            lufs_value = None
+                    storage.update_take_meta(
+                        self._project.project_dir,
+                        take.id,
+                        has_clipping=bool(clip_info.get("has_clipping", False)),
+                        peak_dbfs=clip_info.get("peak_dbfs"),
+                        integrated_lufs=lufs_value,
+                    )
+                    take.has_clipping = bool(clip_info.get("has_clipping", False))
+                    take.peak_dbfs = clip_info.get("peak_dbfs")
+                    take.integrated_lufs = lufs_value
+                except Exception:
+                    clip_info = {}
                 self._project.add_take(take)
                 self._refresh_take_list()
                 take_added = True
@@ -1647,6 +2017,9 @@ class MainWindow(QMainWindow):
         self._recording_timer.stop()
         self._record_waveform.set_samples(np.array([], dtype=np.float32))
         self._update_ui_state()
+        # 録音終了後は引き続きレベルメーターを動かすためモニターを再開
+        if get_level_meter_enabled():
+            self._recorder.start_monitoring()
         
         # 録音終了後、追加されたテイクを自動選択・スクロール表示
         if take_added and hasattr(self, '_last_added_take_id') and self._last_added_take_id:
@@ -1664,7 +2037,15 @@ class MainWindow(QMainWindow):
         
         if self.statusBar():
             if take_added:
-                self.statusBar().showMessage("1テイクを追加しました")
+                if clip_info.get("has_clipping"):
+                    peak_db = clip_info.get("peak_dbfs")
+                    peak_text = f"（ピーク {peak_db:.1f} dBFS）" if isinstance(peak_db, float) else ""
+                    self.statusBar().showMessage(
+                        f"⚠ テイクを追加しました: クリップを検出しました{peak_text}",
+                        6000,
+                    )
+                else:
+                    self.statusBar().showMessage("1テイクを追加しました", 3000)
             else:
                 self.statusBar().showMessage(self._project.project_dir or "準備完了")
 
@@ -1692,11 +2073,94 @@ class MainWindow(QMainWindow):
         """テイク一覧の選択変更時、紐付いた台本行へスクロールし、ハイライトを更新する。"""
         if current is None:
             return
+        # 台本カーソル移動起因で選択された場合は、逆方向のスクロールを抑止する。
+        if self._syncing_script_cursor:
+            self._highlight_current_line()
+            return
         take_id = current.data(Qt.ItemDataRole.UserRole)
         t = self._project.get_take(take_id) if take_id else None
         if t and t.script_line_number is not None:
             self._scroll_script_to_line(t.script_line_number)
         self._highlight_current_line()
+
+    def _on_script_cursor_line_changed(self) -> None:
+        """台本のカーソル行が変わったら、ガターマーカー更新＋テイク一覧を同期選択する。"""
+        try:
+            script_text = self._script_edit.toPlainText()
+            cursor_pos = self._script_edit.textCursor().position()
+            line_no = get_current_line_number(script_text, cursor_pos)
+        except Exception:
+            line_no = None
+
+        # ガターの●マーカー更新（常に）
+        try:
+            self._script_container.set_current_script_line(line_no if line_no and line_no >= 1 else None)
+        except Exception:
+            pass
+
+        # 自分自身が同期中、または行番号が変わっていないなら以降スキップ
+        if self._syncing_script_cursor:
+            return
+        if line_no == self._last_synced_script_line:
+            return
+        self._last_synced_script_line = line_no
+        if not line_no or line_no < 1:
+            return
+
+        # 現在の行に対応するテイクを抽出（表示中テイクの中から選ぶ）
+        try:
+            visible_ids = set()
+            for i in range(self._take_list.count()):
+                it = self._take_list.item(i)
+                if it is not None:
+                    tid = it.data(Qt.ItemDataRole.UserRole)
+                    if tid:
+                        visible_ids.add(tid)
+            if not visible_ids:
+                return
+            matching = [
+                t for t in self._project.takes
+                if getattr(t, "script_line_number", None) == line_no and t.id in visible_ids
+            ]
+            if not matching:
+                return
+            # 採用 > お気に入り > 作成日時新しい順
+            def _ts(iso: str) -> float:
+                try:
+                    from datetime import datetime
+                    return datetime.fromisoformat((iso or "").replace("Z", "+00:00")).timestamp()
+                except Exception:
+                    return 0.0
+            matching.sort(key=lambda t: (0 if t.adopted else 1, 0 if t.favorite else 1, -_ts(t.created_at)))
+            target_id = matching[0].id
+
+            cur = self._take_list.currentItem()
+            already_exact = (
+                cur is not None
+                and cur.data(Qt.ItemDataRole.UserRole) == target_id
+                and cur.isSelected()
+                and len(self._take_list.selectedItems()) == 1
+            )
+            if already_exact:
+                return
+
+            self._syncing_script_cursor = True
+            try:
+                for i in range(self._take_list.count()):
+                    item = self._take_list.item(i)
+                    if item and item.data(Qt.ItemDataRole.UserRole) == target_id:
+                        # ExtendedSelection モードでは既存選択が残るので明示的にクリアしてから選び直す
+                        self._take_list.clearSelection()
+                        self._take_list.setCurrentItem(item)
+                        item.setSelected(True)
+                        self._take_list.scrollToItem(item, QAbstractItemView.ScrollHint.EnsureVisible)
+                        break
+            finally:
+                self._syncing_script_cursor = False
+            # 同期後、台本側のハイライトも更新（選択テイクに基づく2色目）
+            self._highlight_current_line()
+        except Exception:
+            self._syncing_script_cursor = False
 
     def _scroll_script_to_line(self, line_number: int | None) -> None:
         """台本エリアを指定行（1-based）にスクロールし、カーソルを移動する。"""
@@ -1946,6 +2410,14 @@ class MainWindow(QMainWindow):
         dlg = SettingsDialog(self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             self._apply_theme(get_theme())
+            # 先にアプリ全体フォントを反映し、その後に台本フォントを明示的に上書きする。
+            # （順序を逆にすると QApplication.setFont() 後のカスケードで台本フォントが
+            # 意図しないサイズに戻ってしまうケースがあるため）
+            try:
+                from src.ui.app_font import apply_from_settings as _apply_app_font
+                _apply_app_font()
+            except Exception:
+                pass
             self._apply_script_font_size(get_script_font_size())
             mode = get_recording_mode()
             idx = self._record_mode_combo.findData(mode)
@@ -1957,7 +2429,151 @@ class MainWindow(QMainWindow):
             design = get_waveform_design()
             self._record_waveform.set_design_id(design)
             self._playback_waveform.set_design_id(design)
+            # A1: レベルメーターの表示切替
+            meter_enabled = get_level_meter_enabled()
+            self._level_meter.setVisible(meter_enabled)
+            if meter_enabled:
+                if not self._recorder.is_recording:
+                    self._recorder.start_monitoring()
+                if not self._level_meter_timer.isActive():
+                    self._level_meter_timer.start(50)
+            else:
+                self._level_meter_timer.stop()
+                self._recorder.stop_monitoring()
             self.statusBar().showMessage("設定を反映しました。", 3000)
+
+    def _set_rating_for_take(self, take_id: str, rating: int) -> None:
+        """B1: 単一テイクの星評価を設定する。"""
+        storage.update_take_meta(self._project.project_dir, take_id, rating=rating)
+        self._project = storage.load_project(self._project.project_dir) or self._project
+        self._refresh_take_list()
+
+    def _edit_tags_for_take(self, take_id: str) -> None:
+        """B1: タグ編集ダイアログ（カンマ区切り）。"""
+        from PyQt6.QtWidgets import QInputDialog
+        ti = self._project.get_take(take_id)
+        if ti is None:
+            return
+        current = ", ".join(ti.tags)
+        text, ok = QInputDialog.getText(
+            self,
+            "タグを編集",
+            "タグをカンマ区切りで入力（例: OK, 要リテイク, キャラA）:",
+            text=current,
+        )
+        if not ok:
+            return
+        tags = [s.strip() for s in text.split(",") if s.strip()]
+        storage.update_take_meta(self._project.project_dir, take_id, tags=tags)
+        self._project = storage.load_project(self._project.project_dir) or self._project
+        self._refresh_take_list()
+
+    def _build_bulk_submenu(self, parent_menu: QMenu, take_ids: list[str]) -> None:
+        """B3: 複数選択時の一括操作メニュー。"""
+        n = len(take_ids)
+        bulk_menu = parent_menu.addMenu(f"選択中 {n} 件に一括適用")
+        # お気に入り付与／解除
+        act_fav_on = QAction("★ お気に入りに追加", self)
+        act_fav_on.triggered.connect(lambda: self._bulk_apply(take_ids, favorite=True))
+        bulk_menu.addAction(act_fav_on)
+        act_fav_off = QAction("お気に入りを解除", self)
+        act_fav_off.triggered.connect(lambda: self._bulk_apply(take_ids, favorite=False))
+        bulk_menu.addAction(act_fav_off)
+        bulk_menu.addSeparator()
+        # 評価の一括変更
+        rating_menu = bulk_menu.addMenu("評価 (★) を一括設定")
+        for r in (0, 1, 2, 3, 4, 5):
+            label = "評価なし" if r == 0 else ("★" * r)
+            act_r = QAction(label, self)
+            act_r.triggered.connect(lambda _c=False, rr=r: self._bulk_apply(take_ids, rating=rr))
+            rating_menu.addAction(act_r)
+        bulk_menu.addSeparator()
+        # タグ一括追加・削除
+        act_add_tag = QAction("タグを追加…", self)
+        act_add_tag.triggered.connect(lambda: self._bulk_edit_tags(take_ids, add=True))
+        bulk_menu.addAction(act_add_tag)
+        act_rm_tag = QAction("タグを削除…", self)
+        act_rm_tag.triggered.connect(lambda: self._bulk_edit_tags(take_ids, add=False))
+        bulk_menu.addAction(act_rm_tag)
+        bulk_menu.addSeparator()
+        # 採用解除（採用付与は 1 本のみなので一括では提供しない）
+        act_clear_adopt = QAction("採用を解除（選択全て）", self)
+        act_clear_adopt.triggered.connect(lambda: self._bulk_apply(take_ids, clear_adopted=True))
+        bulk_menu.addAction(act_clear_adopt)
+        bulk_menu.addSeparator()
+        # 選択したテイクだけエクスポート
+        act_export_selected = QAction("選択したテイクだけエクスポート…", self)
+        act_export_selected.triggered.connect(lambda: self._export_specific_takes(take_ids))
+        bulk_menu.addAction(act_export_selected)
+
+    def _bulk_apply(
+        self,
+        take_ids: list[str],
+        *,
+        favorite: bool | None = None,
+        rating: int | None = None,
+        clear_adopted: bool = False,
+    ) -> None:
+        """B3: 一括メタ更新（お気に入り・評価・採用解除）。"""
+        storage.update_takes_meta_bulk(
+            self._project.project_dir,
+            take_ids,
+            favorite=favorite,
+            rating=rating,
+            clear_adopted=clear_adopted,
+        )
+        self._project = storage.load_project(self._project.project_dir) or self._project
+        self._refresh_take_list()
+        if self.statusBar():
+            self.statusBar().showMessage(f"{len(take_ids)} 件に変更を適用しました", 3000)
+
+    def _bulk_edit_tags(self, take_ids: list[str], *, add: bool) -> None:
+        """B3: 選択テイクにタグを一括追加／削除。"""
+        from PyQt6.QtWidgets import QInputDialog
+        verb = "追加" if add else "削除"
+        text, ok = QInputDialog.getText(
+            self,
+            f"タグを一括{verb}",
+            f"カンマ区切りで{verb}するタグを入力:",
+        )
+        if not ok:
+            return
+        tags = [s.strip() for s in text.split(",") if s.strip()]
+        if not tags:
+            return
+        storage.update_takes_meta_bulk(
+            self._project.project_dir,
+            take_ids,
+            add_tags=tags if add else None,
+            remove_tags=None if add else tags,
+        )
+        self._project = storage.load_project(self._project.project_dir) or self._project
+        self._refresh_take_list()
+
+    def _export_specific_takes(self, take_ids: list[str]) -> None:
+        """選択したテイクのみエクスポートする簡易ダイアログ。"""
+        if not take_ids:
+            return
+        dest = QFileDialog.getExistingDirectory(
+            self,
+            "エクスポート先を選択",
+            directory=get_export_last_dir() or "",
+        )
+        if not dest:
+            return
+        set_export_last_dir(dest)
+        try:
+            paths = storage.export_takes(
+                self._project.project_dir,
+                take_ids,
+                dest,
+                use_friendly_names=get_export_use_friendly_names(),
+                name_template=get_export_name_template() or None,
+            )
+        except OSError as e:
+            QMessageBox.warning(self, "エクスポート", str(e))
+            return
+        QMessageBox.information(self, "エクスポート", f"{len(paths)} 件をエクスポートしました。\n{dest}")
 
     def _on_take_context_menu(self, pos: typing.Any) -> None:
         item = self._take_list.itemAt(pos)
@@ -1971,6 +2587,10 @@ class MainWindow(QMainWindow):
             for i in range(self._take_list.count())
             if self._take_list.item(i).isSelected()
         ]
+        # B3: 複数選択時は一括操作メニューを先頭に
+        if len(selected) >= 2:
+            self._build_bulk_submenu(menu, selected)
+            menu.addSeparator()
         if len(selected) == 2:
             act_ab = QAction("A/B比較で再生（A→Bの順）", self)
             def start_ab_compare():
@@ -2001,6 +2621,20 @@ class MainWindow(QMainWindow):
                 self._refresh_take_list()
         act_adopted.triggered.connect(toggle_adopted)
         menu.addAction(act_adopted)
+        # B1: 星評価サブメニュー
+        rating_menu = menu.addMenu("評価 (★)")
+        current_rating = t.rating if t else 0
+        for r in (0, 1, 2, 3, 4, 5):
+            label = "評価なし" if r == 0 else ("★" * r)
+            if r == current_rating:
+                label = "● " + label
+            act_r = QAction(label, self)
+            act_r.triggered.connect(lambda _checked=False, rating=r: self._set_rating_for_take(take_id, rating))
+            rating_menu.addAction(act_r)
+        # B1: タグ編集
+        act_tags = QAction("タグを編集…", self)
+        act_tags.triggered.connect(lambda: self._edit_tags_for_take(take_id))
+        menu.addAction(act_tags)
         act_memo = QAction("メモを編集", self)
         def edit_memo():
             ti = self._project.get_take(take_id)
@@ -2021,6 +2655,40 @@ class MainWindow(QMainWindow):
         act_play = QAction("このテイクを再生    Enter", self)
         act_play.triggered.connect(lambda: self._on_take_double_clicked(item))
         menu.addAction(act_play)
+
+        # ファイルの場所を開く
+        act_reveal = QAction("このファイルの場所を開く", self)
+        act_reveal.triggered.connect(lambda: self._on_reveal_take_in_folder(take_id))
+        menu.addAction(act_reveal)
+
+        menu.addSeparator()
+
+        # 後処理サブメニュー（A/B）
+        proc_menu = menu.addMenu("後処理")
+        act_analyze = QAction("ラウドネス(LUFS) 解析", self)
+        act_analyze.triggered.connect(lambda: self._on_analyze_loudness_take(take_id))
+        proc_menu.addAction(act_analyze)
+        act_trim = QAction("前後の無音をトリム（上書き）", self)
+        act_trim.triggered.connect(lambda: self._on_trim_silence_take(take_id))
+        proc_menu.addAction(act_trim)
+        act_nr = QAction("ノイズ除去（上書き）", self)
+        act_nr.triggered.connect(lambda: self._on_noise_reduce_take(take_id))
+        proc_menu.addAction(act_nr)
+        act_norm = QAction("LUFS 正規化（上書き）", self)
+        act_norm.triggered.connect(lambda: self._on_normalize_loudness_take(take_id))
+        proc_menu.addAction(act_norm)
+
+        # 単発書き出し（C）
+        exp_menu = menu.addMenu("このテイクを書き出し")
+        act_exp_wav = QAction("WAV で書き出し", self)
+        act_exp_wav.triggered.connect(lambda: self._on_export_single_take(take_id, "wav"))
+        exp_menu.addAction(act_exp_wav)
+        act_exp_flac = QAction("FLAC で書き出し", self)
+        act_exp_flac.triggered.connect(lambda: self._on_export_single_take(take_id, "flac"))
+        exp_menu.addAction(act_exp_flac)
+        act_exp_mp3 = QAction("MP3 で書き出し", self)
+        act_exp_mp3.triggered.connect(lambda: self._on_export_single_take(take_id, "mp3"))
+        exp_menu.addAction(act_exp_mp3)
 
         # リテイク（削除して再録音）
         act_retake = QAction("このテイクをリテイク", self)
@@ -2051,30 +2719,16 @@ class MainWindow(QMainWindow):
 
         menu.addSeparator()
 
-        # 削除
-        act_del = QAction("テイクを削除    Del", self)
+        # 削除（Deleteキーと同じ挙動: 右クリックしたテイクが複数選択に含まれていれば全件削除）
+        if len(selected) >= 2 and take_id in selected:
+            del_label = f"選択した{len(selected)}件のテイクを削除    Del"
+            del_targets = [tid for tid in selected if tid]
+        else:
+            del_label = "テイクを削除    Del"
+            del_targets = [take_id]
+        act_del = QAction(del_label, self)
         def delete_take():
-            if get_confirm_before_delete_take():
-                box = QMessageBox(self)
-                box.setWindowTitle("確認")
-                box.setText("このテイクを削除しますか？")
-                box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-                box.setDefaultButton(QMessageBox.StandardButton.No)
-                if box.exec() != QMessageBox.StandardButton.Yes:
-                    return
-            if self._playing_take_id == take_id or self._loaded_take_id == take_id:
-                self._playback.release_file_lock()
-                self._playback_position_timer.stop()
-                self._playing_take_id = None
-                self._loaded_take_id = None
-                self._update_ui_state()
-                QTimer.singleShot(100, lambda: self._delete_take_after_unlock(take_id))
-            else:
-                if storage.delete_take(self._project.project_dir, take_id):
-                    self._project = storage.load_project(self._project.project_dir) or self._project
-                    self._refresh_take_list()
-                else:
-                    QMessageBox.warning(self, "エラー", "削除に失敗しました。ファイルが使用中かもしれません。")
+            self._delete_takes_with_confirm(list(del_targets))
         act_del.triggered.connect(delete_take)
         menu.addAction(act_del)
 
@@ -2089,27 +2743,15 @@ class MainWindow(QMainWindow):
             if not self._recorder.is_recording:
                 self._on_record_toggle()
 
-    def _delete_take_after_unlock(self, take_id: str) -> None:
-        """ファイルロック解除後にテイクを削除する。"""
-        if storage.delete_take(self._project.project_dir, take_id):
-            self._project = storage.load_project(self._project.project_dir) or self._project
-            self._refresh_take_list()
-        else:
-            QMessageBox.warning(self, "エラー", "削除に失敗しました。ファイルが使用中かもしれません。")
+    def _delete_takes_with_confirm(self, take_ids: list[str]) -> None:
+        """確認ダイアログ・再生ロック解除・一括削除までを共通化した削除処理。
 
-    def _on_take_list_delete_key(self) -> None:
-        """テイク一覧にフォーカスがあるときにDeleteで選択テイクを削除。"""
-        if not self._project.has_project_dir() or not self._project.takes:
-            return
-        items = [self._take_list.item(i) for i in range(self._take_list.count()) if self._take_list.item(i).isSelected()]
-        if not items:
-            cur = self._take_list.currentItem()
-            if cur:
-                items = [cur]
-        if not items:
-            return
-        take_ids = [it.data(Qt.ItemDataRole.UserRole) for it in items if it and it.data(Qt.ItemDataRole.UserRole)]
+        Deleteキーと右クリック「テイクを削除」の両方から呼ばれ、
+        複数テイクを安全にまとめて削除する。
+        """
         if not take_ids:
+            return
+        if not self._project.has_project_dir():
             return
         n = len(take_ids)
         msg = f"選択した{n}件のテイクを削除しますか？" if n > 1 else "このテイクを削除しますか？"
@@ -2132,13 +2774,26 @@ class MainWindow(QMainWindow):
                 self._update_ui_state()
                 needs_unlock = True
                 break
-        
+
         if needs_unlock:
             # ファイルロックが解放されるまで少し待ってから削除
             QTimer.singleShot(100, lambda: self._delete_takes_after_unlock(take_ids, n))
         else:
-            # 再生中でない場合は即座に削除
             self._delete_takes_after_unlock(take_ids, n)
+
+    def _on_take_list_delete_key(self) -> None:
+        """テイク一覧にフォーカスがあるときにDeleteで選択テイクを削除。"""
+        if not self._project.has_project_dir() or not self._project.takes:
+            return
+        items = [self._take_list.item(i) for i in range(self._take_list.count()) if self._take_list.item(i).isSelected()]
+        if not items:
+            cur = self._take_list.currentItem()
+            if cur:
+                items = [cur]
+        if not items:
+            return
+        take_ids = [it.data(Qt.ItemDataRole.UserRole) for it in items if it and it.data(Qt.ItemDataRole.UserRole)]
+        self._delete_takes_with_confirm(take_ids)
 
     def _delete_takes_after_unlock(self, take_ids: list[str], total_count: int) -> None:
         """ファイルロック解除後にテイクを削除する。"""
@@ -2161,6 +2816,261 @@ class MainWindow(QMainWindow):
             item = self._take_list.item(0)
         if item:
             self._on_take_double_clicked(item)
+
+    def _on_export_adopted_oneclick(self) -> None:
+        """G1: 採用テイクをワンクリックで前回の保存先にエクスポートする。
+
+        採用テイクが無い場合は、お気に入りテイクにフォールバックし、それも無ければ通知のみ。
+        前回の保存先が未設定の場合はフォルダ選択ダイアログを出す。
+        """
+        if not self._project.has_project_dir():
+            QMessageBox.warning(self, "エクスポート", "プロジェクトを開いてください。")
+            return
+        adopted_ids = [t.id for t in self._project.takes if t.adopted]
+        fallback_used = False
+        if not adopted_ids:
+            fav_ids = [t.id for t in self._project.takes if t.favorite]
+            if not fav_ids:
+                QMessageBox.information(
+                    self,
+                    "エクスポート",
+                    "採用テイクもお気に入りテイクもありません。右クリックから★または採用を設定してください。",
+                )
+                return
+            adopted_ids = fav_ids
+            fallback_used = True
+        last_dir = get_export_last_dir() or ""
+        dest = last_dir
+        if not dest or not Path(dest).is_dir():
+            dest = QFileDialog.getExistingDirectory(self, "エクスポート先を選択", directory=last_dir)
+            if not dest:
+                return
+            set_export_last_dir(dest)
+        try:
+            paths = storage.export_takes(
+                self._project.project_dir,
+                adopted_ids,
+                dest,
+                use_friendly_names=True,
+                name_template=get_export_name_template() or None,
+            )
+        except OSError as e:
+            QMessageBox.warning(self, "エクスポート", str(e))
+            return
+        note = "（採用が無かったためお気に入りを書き出しました）" if fallback_used else ""
+        msg = f"{len(paths)} 件をエクスポートしました{note}。\n保存先: {dest}"
+        QMessageBox.information(self, "一括納品", msg)
+
+    def _on_reveal_takes_folder(self) -> None:
+        """録音WAVが保存されている takes フォルダをOSのファイルマネージャで開く。"""
+        if not self._project.has_project_dir():
+            QMessageBox.warning(self, "保存フォルダを開く", "プロジェクトを開いてください。")
+            return
+        takes_dir = storage.get_takes_dir(self._project.project_dir)
+        try:
+            from pathlib import Path as _Path
+            _Path(takes_dir).mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+        if storage.reveal_in_file_manager(takes_dir):
+            self.statusBar().showMessage(f"保存フォルダを開きました: {takes_dir}", 4000)
+        else:
+            QMessageBox.warning(
+                self,
+                "保存フォルダを開く",
+                f"フォルダを開けませんでした:\n{takes_dir}",
+            )
+
+    def _on_reveal_take_in_folder(self, take_id: str) -> None:
+        """指定テイクのWAVファイルを、ファイルマネージャで選択状態で開く。"""
+        if not self._project.has_project_dir():
+            return
+        t = self._project.get_take(take_id)
+        if t is None:
+            return
+        wav_path = storage.get_take_wav_path(self._project.project_dir, t.wav_filename)
+        if storage.reveal_in_file_manager(wav_path):
+            self.statusBar().showMessage(f"ファイルの場所を開きました: {wav_path}", 4000)
+        else:
+            QMessageBox.warning(
+                self,
+                "ファイルの場所を開く",
+                f"ファイルを見つけられませんでした:\n{wav_path}",
+            )
+
+    # ----- A/B: 単発後処理 -----
+
+    def _stop_playback_if_using(self, take_id: str) -> None:
+        """編集対象が再生中/ロード中なら停止してファイルロックを解放する。"""
+        if self._playing_take_id == take_id or self._loaded_take_id == take_id:
+            try:
+                self._playback.release_file_lock()
+            except Exception:  # noqa: BLE001
+                pass
+            self._playback_position_timer.stop()
+            self._playing_take_id = None
+            self._loaded_take_id = None
+            self._update_ui_state()
+
+    def _on_analyze_loudness_take(self, take_id: str) -> None:
+        """単一テイクの LUFS を解析してメタに書き込む。"""
+        if not self._project.has_project_dir():
+            return
+        t = self._project.get_take(take_id)
+        if t is None:
+            return
+        wav_path = storage.get_take_wav_path(self._project.project_dir, t.wav_filename)
+        from PyQt6.QtWidgets import QApplication
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            try:
+                from src.audio_processing import analyze_loudness
+                info = analyze_loudness(wav_path)
+            except Exception as e:  # noqa: BLE001
+                QMessageBox.warning(self, "LUFS 解析", f"解析に失敗しました: {e}")
+                return
+        finally:
+            QApplication.restoreOverrideCursor()
+        lufs = info.get("integrated_lufs")
+        peak = info.get("peak_dbfs")
+        storage.update_take_meta(
+            self._project.project_dir,
+            take_id,
+            integrated_lufs=lufs if isinstance(lufs, float) else None,
+            peak_dbfs=peak if isinstance(peak, float) else None,
+        )
+        self._project = storage.load_project(self._project.project_dir) or self._project
+        self._refresh_take_list()
+        if isinstance(lufs, float) and math.isfinite(lufs):
+            self.statusBar().showMessage(f"LUFS 解析: {lufs:.1f} LUFS", 5000)
+        else:
+            self.statusBar().showMessage("LUFS 解析: 短すぎる/無音のため測定不能", 5000)
+
+    def _process_take_in_place(
+        self,
+        take_id: str,
+        operation_label: str,
+        processor,  # (in_path, out_path) -> dict
+    ) -> None:
+        """共通: テイクの WAV を一時ファイルで処理してから置き換える。
+
+        ``processor`` は入力パス・出力パスを受け取り任意の dict を返す関数。
+        """
+        if not self._project.has_project_dir():
+            return
+        t = self._project.get_take(take_id)
+        if t is None:
+            return
+        self._stop_playback_if_using(take_id)
+        wav_path = storage.get_take_wav_path(self._project.project_dir, t.wav_filename)
+        if not Path(wav_path).exists():
+            QMessageBox.warning(self, operation_label, "WAV ファイルが見つかりません。")
+            return
+        from PyQt6.QtWidgets import QApplication
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            try:
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+                    tmp_path = tmp.name
+                try:
+                    processor(wav_path, tmp_path)
+                    # 元ファイルを置き換え（Windows のロック対策で少しリトライ）
+                    import time as _time
+                    for i in range(3):
+                        try:
+                            shutil.copy2(tmp_path, wav_path)
+                            break
+                        except PermissionError:
+                            if i == 2:
+                                raise
+                            _time.sleep(0.1)
+                finally:
+                    Path(tmp_path).unlink(missing_ok=True)
+            except Exception as e:  # noqa: BLE001
+                QMessageBox.warning(self, operation_label, f"処理に失敗しました: {e}")
+                return
+        finally:
+            QApplication.restoreOverrideCursor()
+        # 処理後にクリッピング・LUFS を再解析して反映
+        try:
+            clip_info = storage.analyze_wav_clipping(wav_path)
+            from src.audio_processing import analyze_loudness
+            lufs_info = analyze_loudness(wav_path)
+            storage.update_take_meta(
+                self._project.project_dir,
+                take_id,
+                has_clipping=bool(clip_info.get("has_clipping", False)),
+                peak_dbfs=clip_info.get("peak_dbfs"),
+                integrated_lufs=lufs_info.get("integrated_lufs"),
+            )
+        except Exception:  # noqa: BLE001
+            pass
+        self._project = storage.load_project(self._project.project_dir) or self._project
+        self._refresh_take_list()
+        self.statusBar().showMessage(f"{operation_label} を適用しました", 4000)
+
+    def _on_trim_silence_take(self, take_id: str) -> None:
+        """前後の無音をトリムして上書き。"""
+        def _proc(in_path: str, out_path: str) -> dict:
+            from src.audio_processing import trim_silence
+            return trim_silence(in_path, out_path)
+        self._process_take_in_place(take_id, "無音トリム", _proc)
+
+    def _on_noise_reduce_take(self, take_id: str) -> None:
+        """ノイズ除去をかけて上書き。"""
+        def _proc(in_path: str, out_path: str) -> dict:
+            from src.audio_processing import reduce_noise
+            return reduce_noise(in_path, out_path)
+        self._process_take_in_place(take_id, "ノイズ除去", _proc)
+
+    def _on_normalize_loudness_take(self, take_id: str) -> None:
+        """LUFS 正規化をかけて上書き。目標値は設定に従う。"""
+        target = get_lufs_target()
+        def _proc(in_path: str, out_path: str) -> dict:
+            from src.audio_processing import normalize_to_lufs
+            return normalize_to_lufs(in_path, out_path, target_lufs=target)
+        self._process_take_in_place(take_id, f"LUFS 正規化({target:.0f})", _proc)
+
+    def _on_export_single_take(self, take_id: str, fmt: str) -> None:
+        """右クリックからの単発書き出し（フォーマット指定）。"""
+        if not self._project.has_project_dir():
+            return
+        t = self._project.get_take(take_id)
+        if t is None:
+            return
+        try:
+            from src.audio_processing import output_extension_for
+        except ImportError:
+            QMessageBox.warning(self, "書き出し", "音声処理モジュールを読み込めませんでした。")
+            return
+        ext = output_extension_for(fmt)
+        project_name = Path(self._project.project_dir).name or "project"
+        default_name = f"{project_name}_{Path(t.wav_filename).stem}{ext}"
+        initial = str(Path(get_export_last_dir() or "") / default_name) if get_export_last_dir() else default_name
+        out_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "テイクを書き出し",
+            initial,
+            f"{fmt.upper()} files (*{ext})",
+        )
+        if not out_path:
+            return
+        if not out_path.lower().endswith(ext):
+            out_path += ext
+        set_export_last_dir(str(Path(out_path).parent))
+        src_wav = storage.get_take_wav_path(self._project.project_dir, t.wav_filename)
+        from PyQt6.QtWidgets import QApplication
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            try:
+                from src.audio_processing import convert_format
+                convert_format(src_wav, out_path, fmt=fmt, mp3_bitrate_kbps=get_mp3_bitrate())
+            except Exception as e:  # noqa: BLE001
+                QMessageBox.warning(self, "書き出し", f"書き出しに失敗しました: {e}")
+                return
+        finally:
+            QApplication.restoreOverrideCursor()
+        self.statusBar().showMessage(f"書き出し完了: {out_path}", 5000)
 
     def _on_export_takes(self) -> None:
         if not self._project.has_project_dir():
@@ -2211,9 +3121,64 @@ class MainWindow(QMainWindow):
         layout.addWidget(r_selected)
         layout.addWidget(r_adopted)
         layout.addWidget(r_favorite)
-        friendly = QCheckBox("ファイル名を「プロジェクト名_Take1.wav」形式にする")
+        friendly = QCheckBox("ファイル名を「プロジェクト名_Take1」形式にする")
         friendly.setChecked(get_export_use_friendly_names())
         layout.addWidget(friendly)
+
+        # --- フォーマット選択（C） ---
+        from PyQt6.QtWidgets import QComboBox, QGroupBox, QFormLayout, QDoubleSpinBox
+        fmt_group = QGroupBox("フォーマット")
+        fmt_form = QFormLayout(fmt_group)
+        fmt_combo = QComboBox()
+        fmt_combo.addItem("WAV (16bit PCM)", "wav")
+        fmt_combo.addItem("FLAC (可逆圧縮)", "flac")
+        fmt_combo.addItem("MP3 (CBR)", "mp3")
+        default_fmt = get_export_format()
+        fmt_idx = {"wav": 0, "flac": 1, "mp3": 2}.get(default_fmt, 0)
+        fmt_combo.setCurrentIndex(fmt_idx)
+        fmt_form.addRow("出力形式:", fmt_combo)
+
+        mp3_combo = QComboBox()
+        for br in (128, 192, 256, 320):
+            mp3_combo.addItem(f"{br} kbps", br)
+        current_br = get_mp3_bitrate()
+        for i in range(mp3_combo.count()):
+            if mp3_combo.itemData(i) == current_br:
+                mp3_combo.setCurrentIndex(i)
+                break
+        mp3_combo.setEnabled(default_fmt == "mp3")
+        fmt_form.addRow("MP3 ビットレート:", mp3_combo)
+        fmt_combo.currentIndexChanged.connect(
+            lambda _i: mp3_combo.setEnabled(fmt_combo.currentData() == "mp3")
+        )
+        layout.addWidget(fmt_group)
+
+        # --- 後処理オプション（A/B） ---
+        post_group = QGroupBox("書き出し前処理")
+        post_form = QFormLayout(post_group)
+        chk_noise = QCheckBox("ノイズ除去を適用する")
+        chk_noise.setChecked(get_export_apply_noise_reduce())
+        chk_noise.setToolTip("先頭 0.5 秒をノイズプロファイルとしてスペクトルサブトラクションを適用")
+        post_form.addRow(chk_noise)
+        chk_trim = QCheckBox("前後の無音をトリムする")
+        chk_trim.setChecked(get_export_apply_trim_silence())
+        chk_trim.setToolTip("閾値 -45 dBFS を下回る区間を先頭/末尾からカット（前後 80ms の余白あり）")
+        post_form.addRow(chk_trim)
+        chk_lufs = QCheckBox("LUFS ラウドネス正規化を適用する")
+        chk_lufs.setChecked(get_export_apply_lufs())
+        post_form.addRow(chk_lufs)
+        lufs_spin = QDoubleSpinBox()
+        lufs_spin.setRange(-30.0, -6.0)
+        lufs_spin.setDecimals(1)
+        lufs_spin.setSingleStep(1.0)
+        lufs_spin.setValue(float(get_lufs_target()))
+        lufs_spin.setSuffix(" LUFS")
+        lufs_spin.setToolTip("目標ラウドネス。-16: YouTube/Spotify, -14: Apple Music, -23: 放送基準")
+        lufs_spin.setEnabled(chk_lufs.isChecked())
+        chk_lufs.toggled.connect(lufs_spin.setEnabled)
+        post_form.addRow("目標ラウドネス:", lufs_spin)
+        layout.addWidget(post_group)
+
         bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         bb.accepted.connect(dlg.accept)
         bb.rejected.connect(dlg.reject)
@@ -2231,22 +3196,59 @@ class MainWindow(QMainWindow):
         else:
             take_ids = [t.id for t in self._project.takes]
         set_export_use_friendly_names(friendly.isChecked())
+
+        chosen_fmt = fmt_combo.currentData() or "wav"
+        chosen_bitrate = int(mp3_combo.currentData() or 192)
+        chosen_lufs = float(lufs_spin.value())
+        do_nr = chk_noise.isChecked()
+        do_trim = chk_trim.isChecked()
+        do_lufs = chk_lufs.isChecked()
+        set_export_format(chosen_fmt)
+        set_mp3_bitrate(chosen_bitrate)
+        set_lufs_target(chosen_lufs)
+        set_export_apply_noise_reduce(do_nr)
+        set_export_apply_trim_silence(do_trim)
+        set_export_apply_lufs(do_lufs)
+
         dest = QFileDialog.getExistingDirectory(
             self, "エクスポート先を選択", directory=get_export_last_dir() or ""
         )
         if not dest:
             return
         set_export_last_dir(dest)
+
+        # 重い処理はウェイトカーソルにして体感フリーズを減らす
+        from PyQt6.QtWidgets import QApplication
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
-            paths = storage.export_takes(
-                self._project.project_dir,
-                take_ids,
-                dest,
-                use_friendly_names=friendly.isChecked(),
-            )
-        except OSError as e:
-            QMessageBox.warning(self, "エクスポート", str(e))
-            return
+            try:
+                paths = storage.export_takes(
+                    self._project.project_dir,
+                    take_ids,
+                    dest,
+                    use_friendly_names=friendly.isChecked(),
+                    name_template=get_export_name_template() or None,
+                    fmt=chosen_fmt,
+                    mp3_bitrate_kbps=chosen_bitrate,
+                    do_noise_reduce=do_nr,
+                    do_trim_silence=do_trim,
+                    do_lufs_normalize=do_lufs,
+                    target_lufs=chosen_lufs,
+                )
+            except OSError as e:
+                QMessageBox.warning(self, "エクスポート", str(e))
+                return
+        finally:
+            QApplication.restoreOverrideCursor()
         dest_path = str(Path(paths[0]).parent) if paths else ""
-        msg = f"{len(paths)} 件をエクスポートしました。" + (f"\n保存先: {dest_path}" if dest_path else "")
+        summary = []
+        summary.append(f"形式: {chosen_fmt.upper()}")
+        if do_nr:
+            summary.append("ノイズ除去")
+        if do_trim:
+            summary.append("無音トリム")
+        if do_lufs:
+            summary.append(f"{chosen_lufs:.1f} LUFS 正規化")
+        detail = f"（{' / '.join(summary)}）" if summary else ""
+        msg = f"{len(paths)} 件をエクスポートしました{detail}。" + (f"\n保存先: {dest_path}" if dest_path else "")
         QMessageBox.information(self, "エクスポート", msg)
