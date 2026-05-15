@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920, height=1080">
+<title>終了画面 - 藤 優真</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    background: linear-gradient(135deg, #0a0e1a 0%, #141b2d 40%, #1a1f35 70%, #0d1117 100%);
+    font-family: 'Noto Sans JP', sans-serif;
+    color: #e8e6e3;
+    position: relative;
+  }
+
+  .bg-glow {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(120px);
+    pointer-events: none;
+  }
+
+  .bg-glow.g1 {
+    width: 500px; height: 500px;
+    background: rgba(212, 175, 55, 0.08);
+    top: 30%; left: 30%;
+    animation: fade-drift 10s ease-in-out infinite alternate;
+  }
+
+  .bg-glow.g2 {
+    width: 400px; height: 400px;
+    background: rgba(74, 111, 165, 0.06);
+    top: 40%; right: 20%;
+    animation: fade-drift 10s ease-in-out -5s infinite alternate;
+  }
+
+  @keyframes fade-drift {
+    0% { opacity: 0.5; transform: scale(1); }
+    100% { opacity: 1; transform: scale(1.1); }
+  }
+
+  .content {
+    position: relative;
+    z-index: 10;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .thanks-area {
+    text-align: center;
+    margin-bottom: 50px;
+    animation: fade-in-up 1.5s ease-out forwards;
+  }
+
+  @keyframes fade-in-up {
+    0% { opacity: 0; transform: translateY(30px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+
+  .thanks-en {
+    font-family: 'Playfair Display', serif;
+    font-size: 48px;
+    font-weight: 400;
+    font-style: italic;
+    letter-spacing: 6px;
+    background: linear-gradient(135deg, #e8e6e3, #d4af37);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 20px;
+  }
+
+  .thanks-jp {
+    font-size: 20px;
+    font-weight: 300;
+    letter-spacing: 8px;
+    color: rgba(232, 230, 227, 0.6);
+  }
+
+  .divider {
+    width: 200px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.4), transparent);
+    margin: 40px auto;
+  }
+
+  .name-area {
+    text-align: center;
+    animation: fade-in-up 1.5s ease-out 0.5s forwards;
+    opacity: 0;
+  }
+
+  .name-jp {
+    font-size: 42px;
+    font-weight: 700;
+    letter-spacing: 10px;
+    color: rgba(232, 230, 227, 0.9);
+    margin-bottom: 8px;
+  }
+
+  .name-en {
+    font-family: 'Playfair Display', serif;
+    font-size: 16px;
+    letter-spacing: 8px;
+    color: rgba(212, 175, 55, 0.5);
+  }
+
+  /* --- SNSリンク表示エリア --- */
+  .social-area {
+    margin-top: 60px;
+    display: flex;
+    gap: 48px;
+    animation: fade-in-up 1.5s ease-out 1s forwards;
+    opacity: 0;
+  }
+
+  .social-item {
+    text-align: center;
+  }
+
+  .social-label {
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: rgba(212, 175, 55, 0.5);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .social-handle {
+    font-size: 16px;
+    font-weight: 300;
+    letter-spacing: 2px;
+    color: rgba(232, 230, 227, 0.7);
+  }
+
+  /* --- コーナー装飾 --- */
+  .corner-deco {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    border-color: rgba(212, 175, 55, 0.2);
+    border-style: solid;
+    border-width: 0;
+  }
+
+  .corner-deco.tl { top: 40px; left: 40px; border-top-width: 1px; border-left-width: 1px; }
+  .corner-deco.tr { top: 40px; right: 40px; border-top-width: 1px; border-right-width: 1px; }
+  .corner-deco.bl { bottom: 40px; left: 40px; border-bottom-width: 1px; border-left-width: 1px; }
+  .corner-deco.br { bottom: 40px; right: 40px; border-bottom-width: 1px; border-right-width: 1px; }
+
+  .top-line, .bottom-line {
+    position: absolute;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.25), transparent);
+    width: 50%;
+    left: 25%;
+  }
+
+  .top-line { top: 100px; }
+  .bottom-line { bottom: 100px; }
+
+  /* --- 次回予告エリア（任意） --- */
+  .next-stream {
+    position: absolute;
+    bottom: 50px;
+    text-align: center;
+    width: 100%;
+    animation: fade-in-up 1.5s ease-out 1.5s forwards;
+    opacity: 0;
+  }
+
+  .next-label {
+    font-size: 12px;
+    letter-spacing: 4px;
+    color: rgba(212, 175, 55, 0.4);
+    margin-bottom: 4px;
+  }
+
+  .next-text {
+    font-size: 16px;
+    font-weight: 300;
+    letter-spacing: 3px;
+    color: rgba(232, 230, 227, 0.5);
+  }
+</style>
+</head>
+<body>
+
+<div class="bg-glow g1"></div>
+<div class="bg-glow g2"></div>
+
+<div class="corner-deco tl"></div>
+<div class="corner-deco tr"></div>
+<div class="corner-deco bl"></div>
+<div class="corner-deco br"></div>
+
+<div class="top-line"></div>
+<div class="bottom-line"></div>
+
+<div class="content">
+  <div class="thanks-area">
+    <div class="thanks-en">Thank You for Listening</div>
+    <div class="thanks-jp">ご視聴ありがとうございました</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="name-area">
+    <div class="name-jp">藤 優真</div>
+    <div class="name-en">Fuji Yuma — Voice Actor</div>
+  </div>
+
+  <div class="social-area">
+    <!-- SNSアカウントをここに追加 -->
+    <div class="social-item">
+      <div class="social-label">YouTube</div>
+      <div class="social-handle">@fuji-yuma</div>
+    </div>
+    <div class="social-item">
+      <div class="social-label">X / Twitter</div>
+      <div class="social-handle">@fuji_yuma</div>
+    </div>
+    <!--
+    <div class="social-item">
+      <div class="social-label">Discord</div>
+      <div class="social-handle">サーバー名</div>
+    </div>
+    -->
+  </div>
+</div>
+
+<div class="next-stream">
+  <div class="next-label">Next Stream</div>
+  <div class="next-text">次回の配信もお楽しみに</div>
+</div>
+
+</body>
+</html>

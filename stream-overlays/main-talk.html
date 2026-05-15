@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920, height=1080">
+<title>メイン画面（雑談） - 藤 優真</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    background: transparent;
+    font-family: 'Noto Sans JP', sans-serif;
+    color: #e8e6e3;
+    position: relative;
+  }
+
+  .frame-border {
+    position: absolute;
+    inset: 0;
+    border: 2px solid rgba(212, 175, 55, 0.15);
+    margin: 16px;
+    pointer-events: none;
+  }
+
+  .corner-accent {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    border-color: rgba(212, 175, 55, 0.5);
+    border-style: solid;
+  }
+
+  .corner-accent.tl { top: 12px; left: 12px; border-width: 2px 0 0 2px; }
+  .corner-accent.tr { top: 12px; right: 12px; border-width: 2px 2px 0 0; }
+  .corner-accent.bl { bottom: 12px; left: 12px; border-width: 0 0 2px 2px; }
+  .corner-accent.br { bottom: 12px; right: 12px; border-width: 0 2px 2px 0; }
+
+  /* --- 立ち絵エリアガイド（左側） --- */
+  .avatar-guide {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 500px;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  /* --- 上部バナー --- */
+  .top-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 56px;
+    background: linear-gradient(180deg, rgba(10, 14, 26, 0.9) 0%, rgba(10, 14, 26, 0) 100%);
+    display: flex;
+    align-items: center;
+    padding: 0 40px;
+  }
+
+  .top-bar .name {
+    font-family: 'Playfair Display', serif;
+    font-size: 16px;
+    letter-spacing: 4px;
+    color: rgba(212, 175, 55, 0.7);
+  }
+
+  .top-bar .separator {
+    width: 1px;
+    height: 20px;
+    background: rgba(212, 175, 55, 0.3);
+    margin: 0 20px;
+  }
+
+  .top-bar .stream-title {
+    font-size: 14px;
+    font-weight: 300;
+    letter-spacing: 2px;
+    color: rgba(232, 230, 227, 0.6);
+  }
+
+  /* --- 下部パネル --- */
+  .bottom-panel {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 120px;
+    background: linear-gradient(0deg, rgba(10, 14, 26, 0.95) 0%, rgba(10, 14, 26, 0) 100%);
+  }
+
+  .name-plate {
+    position: absolute;
+    bottom: 24px;
+    left: 460px;
+    display: flex;
+    align-items: flex-end;
+    gap: 16px;
+  }
+
+  .name-plate .jp-name {
+    font-size: 36px;
+    font-weight: 700;
+    letter-spacing: 6px;
+    background: linear-gradient(135deg, #e8e6e3, #d4af37);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .name-plate .en-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 14px;
+    letter-spacing: 3px;
+    color: rgba(212, 175, 55, 0.5);
+    margin-bottom: 6px;
+  }
+
+  .name-plate-line {
+    position: absolute;
+    bottom: 68px;
+    left: 460px;
+    width: 300px;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(212, 175, 55, 0.5), transparent);
+  }
+
+  /* --- チャット表示エリア目安（右下） --- */
+  .chat-area-guide {
+    position: absolute;
+    right: 32px;
+    bottom: 32px;
+    width: 380px;
+    height: 500px;
+    border: 1px dashed rgba(212, 175, 55, 0.15);
+    border-radius: 8px;
+    pointer-events: none;
+    display: none; /* ガイド線。確認時はdisplay:blockに */
+  }
+
+  /* --- トピック表示（右上） --- */
+  .topic-box {
+    position: absolute;
+    top: 80px;
+    right: 40px;
+    padding: 12px 24px;
+    background: rgba(10, 14, 26, 0.7);
+    border: 1px solid rgba(212, 175, 55, 0.2);
+    border-radius: 4px;
+    backdrop-filter: blur(8px);
+  }
+
+  .topic-label {
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: rgba(212, 175, 55, 0.6);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .topic-text {
+    font-size: 18px;
+    font-weight: 300;
+    letter-spacing: 2px;
+    color: rgba(232, 230, 227, 0.85);
+  }
+
+  /* --- 左サイドアクセント --- */
+  .side-accent {
+    position: absolute;
+    left: 500px;
+    top: 80px;
+    bottom: 140px;
+    width: 1px;
+    background: linear-gradient(180deg, transparent, rgba(212, 175, 55, 0.2) 20%, rgba(212, 175, 55, 0.2) 80%, transparent);
+  }
+
+  /* --- BGグロウ --- */
+  .bg-glow {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(100px);
+    pointer-events: none;
+    animation: glow-drift 10s ease-in-out infinite alternate;
+  }
+
+  .bg-glow.g1 {
+    width: 400px; height: 400px;
+    background: rgba(212, 175, 55, 0.06);
+    bottom: -100px; left: 200px;
+  }
+
+  .bg-glow.g2 {
+    width: 300px; height: 300px;
+    background: rgba(74, 111, 165, 0.06);
+    top: 100px; right: 200px;
+    animation-delay: -5s;
+  }
+
+  @keyframes glow-drift {
+    0% { opacity: 0.5; }
+    100% { opacity: 1; }
+  }
+</style>
+</head>
+<body>
+
+<div class="bg-glow g1"></div>
+<div class="bg-glow g2"></div>
+
+<div class="frame-border"></div>
+<div class="corner-accent tl"></div>
+<div class="corner-accent tr"></div>
+<div class="corner-accent bl"></div>
+<div class="corner-accent br"></div>
+
+<!-- 立ち絵配置ガイド（OBSで立ち絵画像を別ソースで左側に配置） -->
+<div class="avatar-guide"></div>
+
+<div class="side-accent"></div>
+
+<!-- 上部バー -->
+<div class="top-bar">
+  <span class="name">FUJI YUMA</span>
+  <span class="separator"></span>
+  <span class="stream-title">雑談配信</span>
+</div>
+
+<!-- トピック表示 -->
+<div class="topic-box">
+  <div class="topic-label">Topic</div>
+  <div class="topic-text">フリートーク</div>
+</div>
+
+<!-- 下部ネームプレート -->
+<div class="bottom-panel">
+  <div class="name-plate-line"></div>
+  <div class="name-plate">
+    <span class="jp-name">藤 優真</span>
+    <span class="en-name">Fuji Yuma</span>
+  </div>
+</div>
+
+<!-- チャット表示エリアガイド（わんコメ等のブラウザソースを右下に配置する目安） -->
+<div class="chat-area-guide"></div>
+
+</body>
+</html>

@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920, height=1080">
+<title>待機画面 - 藤 優真</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    background: linear-gradient(135deg, #0a0e1a 0%, #141b2d 40%, #1a1f35 70%, #0d1117 100%);
+    font-family: 'Noto Sans JP', sans-serif;
+    color: #e8e6e3;
+    position: relative;
+  }
+
+  .particles {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .particle {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    background: radial-gradient(circle, rgba(212, 175, 55, 0.6), transparent);
+    border-radius: 50%;
+    animation: float-up linear infinite;
+  }
+
+  @keyframes float-up {
+    0% { transform: translateY(100vh) scale(0); opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { transform: translateY(-10vh) scale(1); opacity: 0; }
+  }
+
+  .bg-glow {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(120px);
+    opacity: 0.15;
+    animation: pulse-glow 8s ease-in-out infinite alternate;
+  }
+
+  .bg-glow.glow-1 {
+    width: 600px; height: 600px;
+    background: #d4af37;
+    top: 20%; left: 10%;
+  }
+
+  .bg-glow.glow-2 {
+    width: 500px; height: 500px;
+    background: #4a6fa5;
+    bottom: 10%; right: 15%;
+    animation-delay: -4s;
+  }
+
+  .bg-glow.glow-3 {
+    width: 400px; height: 400px;
+    background: #7b68ee;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    animation-delay: -2s;
+  }
+
+  @keyframes pulse-glow {
+    0% { opacity: 0.1; transform: scale(1); }
+    100% { opacity: 0.2; transform: scale(1.15); }
+  }
+
+  .content {
+    position: relative;
+    z-index: 10;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .top-line, .bottom-line {
+    position: absolute;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.4), transparent);
+    width: 60%;
+    left: 20%;
+  }
+
+  .top-line { top: 120px; }
+  .bottom-line { bottom: 120px; }
+
+  .name-area {
+    text-align: center;
+    margin-bottom: 60px;
+  }
+
+  .name-en {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    font-weight: 400;
+    letter-spacing: 12px;
+    color: rgba(212, 175, 55, 0.7);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  .name-jp {
+    font-size: 72px;
+    font-weight: 700;
+    letter-spacing: 16px;
+    background: linear-gradient(135deg, #e8e6e3 0%, #d4af37 50%, #e8e6e3 100%);
+    background-size: 200% 200%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: shimmer 6s ease-in-out infinite;
+  }
+
+  @keyframes shimmer {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+
+  .tagline {
+    font-size: 18px;
+    font-weight: 300;
+    letter-spacing: 6px;
+    color: rgba(232, 230, 227, 0.5);
+    margin-top: 12px;
+  }
+
+  .status-area {
+    text-align: center;
+  }
+
+  .status-text {
+    font-size: 28px;
+    font-weight: 300;
+    letter-spacing: 8px;
+    color: rgba(232, 230, 227, 0.8);
+    animation: fade-pulse 3s ease-in-out infinite;
+  }
+
+  @keyframes fade-pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+
+  .countdown-area {
+    margin-top: 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .dot-loader {
+    display: flex;
+    gap: 8px;
+  }
+
+  .dot-loader span {
+    width: 8px;
+    height: 8px;
+    background: rgba(212, 175, 55, 0.6);
+    border-radius: 50%;
+    animation: dot-bounce 1.5s ease-in-out infinite;
+  }
+
+  .dot-loader span:nth-child(2) { animation-delay: 0.2s; }
+  .dot-loader span:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes dot-bounce {
+    0%, 100% { opacity: 0.3; transform: scale(0.8); }
+    50% { opacity: 1; transform: scale(1.2); }
+  }
+
+  .corner-deco {
+    position: absolute;
+    width: 80px;
+    height: 80px;
+    border-color: rgba(212, 175, 55, 0.3);
+    border-style: solid;
+    border-width: 0;
+  }
+
+  .corner-deco.tl { top: 40px; left: 40px; border-top-width: 1px; border-left-width: 1px; }
+  .corner-deco.tr { top: 40px; right: 40px; border-top-width: 1px; border-right-width: 1px; }
+  .corner-deco.bl { bottom: 40px; left: 40px; border-bottom-width: 1px; border-left-width: 1px; }
+  .corner-deco.br { bottom: 40px; right: 40px; border-bottom-width: 1px; border-right-width: 1px; }
+
+  .social-info {
+    position: absolute;
+    bottom: 60px;
+    right: 80px;
+    text-align: right;
+    font-size: 14px;
+    color: rgba(232, 230, 227, 0.4);
+    letter-spacing: 2px;
+  }
+</style>
+</head>
+<body>
+
+<div class="particles" id="particles"></div>
+
+<div class="bg-glow glow-1"></div>
+<div class="bg-glow glow-2"></div>
+<div class="bg-glow glow-3"></div>
+
+<div class="corner-deco tl"></div>
+<div class="corner-deco tr"></div>
+<div class="corner-deco bl"></div>
+<div class="corner-deco br"></div>
+
+<div class="top-line"></div>
+<div class="bottom-line"></div>
+
+<div class="content">
+  <div class="name-area">
+    <div class="name-en">Fuji Yuma</div>
+    <div class="name-jp">藤 優真</div>
+    <div class="tagline">Voice Actor</div>
+  </div>
+
+  <div class="status-area">
+    <div class="status-text">まもなく はじまります</div>
+    <div class="countdown-area">
+      <div class="dot-loader">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="social-info">
+  <!-- SNSリンク等をここに追加 -->
+</div>
+
+<script>
+  const container = document.getElementById('particles');
+  for (let i = 0; i < 30; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    p.style.left = Math.random() * 100 + '%';
+    p.style.animationDuration = (8 + Math.random() * 12) + 's';
+    p.style.animationDelay = -(Math.random() * 20) + 's';
+    p.style.width = p.style.height = (2 + Math.random() * 4) + 'px';
+    container.appendChild(p);
+  }
+</script>
+
+</body>
+</html>

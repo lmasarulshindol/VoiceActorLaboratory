@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920, height=1080">
+<title>朗読・シチュボ画面 - 藤 優真</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;700&family=Noto+Serif+JP:wght@300;400;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    background: linear-gradient(135deg, #06080f 0%, #0c1018 40%, #0f1420 70%, #080a10 100%);
+    font-family: 'Noto Sans JP', sans-serif;
+    color: #e8e6e3;
+    position: relative;
+  }
+
+  /* --- 環境演出 --- */
+  .ambient-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .vignette {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0, 0, 0, 0.6) 100%);
+  }
+
+  .bg-glow {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(150px);
+    animation: breathe 12s ease-in-out infinite alternate;
+  }
+
+  .bg-glow.warm {
+    width: 500px; height: 500px;
+    background: rgba(212, 175, 55, 0.05);
+    top: 30%; left: 5%;
+  }
+
+  .bg-glow.cool {
+    width: 400px; height: 400px;
+    background: rgba(100, 120, 180, 0.04);
+    bottom: 10%; right: 10%;
+    animation-delay: -6s;
+  }
+
+  @keyframes breathe {
+    0% { opacity: 0.6; transform: scale(1); }
+    100% { opacity: 1; transform: scale(1.1); }
+  }
+
+  /* --- 立ち絵エリア（左側、やや暗め） --- */
+  .avatar-zone {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 420px;
+    height: 100%;
+  }
+
+  .avatar-fade {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 120px;
+    background: linear-gradient(90deg, transparent, rgba(6, 8, 15, 0.8));
+  }
+
+  /* --- テキスト表示エリア（中央〜右） --- */
+  .reading-panel {
+    position: absolute;
+    top: 100px;
+    left: 480px;
+    right: 80px;
+    bottom: 160px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .work-title-area {
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid rgba(212, 175, 55, 0.15);
+  }
+
+  .work-title-label {
+    font-size: 11px;
+    letter-spacing: 4px;
+    color: rgba(212, 175, 55, 0.5);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .work-title {
+    font-family: 'Noto Serif JP', serif;
+    font-size: 28px;
+    font-weight: 400;
+    letter-spacing: 4px;
+    color: rgba(232, 230, 227, 0.9);
+  }
+
+  .text-display {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+  }
+
+  .text-content {
+    font-family: 'Noto Serif JP', serif;
+    font-size: 26px;
+    font-weight: 300;
+    line-height: 2.2;
+    letter-spacing: 3px;
+    color: rgba(232, 230, 227, 0.85);
+    text-align: justify;
+    max-width: 900px;
+    /* テキストをOBSのテキストソースで上に重ねる場合はここは空にする */
+  }
+
+  /* --- 下部ネームプレート --- */
+  .bottom-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 100px;
+    background: linear-gradient(0deg, rgba(6, 8, 15, 0.95) 0%, transparent 100%);
+  }
+
+  .narrator-info {
+    position: absolute;
+    bottom: 24px;
+    left: 480px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .narrator-label {
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: rgba(212, 175, 55, 0.4);
+    text-transform: uppercase;
+  }
+
+  .narrator-name {
+    font-size: 20px;
+    font-weight: 400;
+    letter-spacing: 4px;
+    color: rgba(232, 230, 227, 0.7);
+  }
+
+  .narrator-divider {
+    width: 1px;
+    height: 16px;
+    background: rgba(212, 175, 55, 0.3);
+  }
+
+  /* --- 音声波形風デコレーション --- */
+  .waveform {
+    position: absolute;
+    bottom: 24px;
+    right: 60px;
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 30px;
+  }
+
+  .wave-bar {
+    width: 3px;
+    background: rgba(212, 175, 55, 0.3);
+    border-radius: 2px;
+    animation: wave-pulse ease-in-out infinite;
+  }
+
+  @keyframes wave-pulse {
+    0%, 100% { height: 4px; opacity: 0.3; }
+    50% { opacity: 0.8; }
+  }
+
+  /* --- フレームアクセント --- */
+  .frame-line-top {
+    position: absolute;
+    top: 60px;
+    left: 480px;
+    right: 80px;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(212, 175, 55, 0.3), transparent 70%);
+  }
+
+  .frame-line-left {
+    position: absolute;
+    top: 60px;
+    bottom: 100px;
+    left: 460px;
+    width: 1px;
+    background: linear-gradient(180deg, rgba(212, 175, 55, 0.2), transparent 30%, transparent 70%, rgba(212, 175, 55, 0.2));
+  }
+</style>
+</head>
+<body>
+
+<div class="ambient-layer">
+  <div class="bg-glow warm"></div>
+  <div class="bg-glow cool"></div>
+  <div class="vignette"></div>
+</div>
+
+<!-- 立ち絵エリア -->
+<div class="avatar-zone">
+  <div class="avatar-fade"></div>
+</div>
+
+<div class="frame-line-top"></div>
+<div class="frame-line-left"></div>
+
+<!-- 朗読パネル -->
+<div class="reading-panel">
+  <div class="work-title-area">
+    <div class="work-title-label">Now Reading</div>
+    <div class="work-title">作品タイトル</div>
+  </div>
+  <div class="text-display">
+    <div class="text-content">
+      <!-- OBSでテキストソースを重ねるか、ここに直接テキストを入れる -->
+    </div>
+  </div>
+</div>
+
+<!-- 下部バー -->
+<div class="bottom-bar">
+  <div class="narrator-info">
+    <span class="narrator-label">Voice</span>
+    <span class="narrator-divider"></span>
+    <span class="narrator-name">藤 優真</span>
+  </div>
+</div>
+
+<!-- 波形デコレーション -->
+<div class="waveform" id="waveform"></div>
+
+<script>
+  const wf = document.getElementById('waveform');
+  for (let i = 0; i < 20; i++) {
+    const bar = document.createElement('div');
+    bar.className = 'wave-bar';
+    const h = 4 + Math.random() * 20;
+    bar.style.height = h + 'px';
+    bar.style.animationDuration = (0.8 + Math.random() * 1.2) + 's';
+    bar.style.animationDelay = -(Math.random() * 2) + 's';
+    const maxH = 6 + Math.random() * 24;
+    bar.style.setProperty('--max-h', maxH + 'px');
+    bar.style.animation = `wave-pulse ${0.8 + Math.random() * 1.2}s ease-in-out ${-Math.random() * 2}s infinite`;
+    wf.appendChild(bar);
+  }
+
+  document.querySelectorAll('.wave-bar').forEach(bar => {
+    const dur = 0.8 + Math.random() * 1.2;
+    const delay = Math.random() * 2;
+    const maxH = 6 + Math.random() * 24;
+    bar.style.cssText += `
+      animation: none;
+      height: ${4 + Math.random() * 20}px;
+    `;
+    bar.animate([
+      { height: '4px', opacity: 0.3 },
+      { height: maxH + 'px', opacity: 0.8 },
+      { height: '4px', opacity: 0.3 }
+    ], {
+      duration: dur * 1000,
+      delay: -delay * 1000,
+      iterations: Infinity,
+      easing: 'ease-in-out'
+    });
+  });
+</script>
+
+</body>
+</html>
