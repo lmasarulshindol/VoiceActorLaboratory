@@ -1,0 +1,178 @@
+{
+  "version": 1,
+  "updatedAt": "2026-06-25",
+  "title": null,
+  "world": {
+    "era": "現代",
+    "country": "日本",
+    "notes": "ファンタジー・超常要素なし。現代日本の声優業界を舞台にした日常系。"
+  },
+  "voiceStepProject": {
+    "name": "VoiceStep",
+    "nameJa": "ボイスステップ",
+    "description": "未経験からでも声優を始められるオンラインコミュニティプロジェクト",
+    "officialDiscord": true,
+    "derivedPersonalServer": true
+  },
+  "characters": [
+    {
+      "id": "yuma",
+      "name": "優真",
+      "reading": "ゆうま",
+      "role": "声優の卵",
+      "region": "関東",
+      "regionDetail": null,
+      "age": null,
+      "ageRelative": "older_than_setsuna",
+      "gender": null,
+      "firstPerson": null,
+      "scriptName": "優真",
+      "calls": {
+        "setsuna": "刹那さん"
+      },
+      "calledBy": {
+        "setsuna": ["兄様", "にいさま"]
+      },
+      "personality": {
+        "confirmed": [
+          "刹那に慕われる存在",
+          "声優を目指している",
+          "刹那を刹那さんと呼ぶ",
+          "VoiceStep参加者",
+          "刹那と血のつながりはない",
+          "刹那と対面で会ったことがない",
+          "刹那より年上"
+        ]
+      },
+      "voiceNotes": {
+        "tone": "落ち着きがあり相手を気遣う",
+        "sampleLine": "刹那さん、大丈夫。もう一回だけやってみようか。"
+      }
+    },
+    {
+      "id": "setsuna",
+      "name": "刹那",
+      "reading": "せつな",
+      "role": "声優の卵",
+      "region": "北海道",
+      "regionDetail": null,
+      "age": null,
+      "ageRelative": "younger_than_yuma",
+      "gender": null,
+      "firstPerson": null,
+      "scriptName": "刹那",
+      "calls": {
+        "yuma": "兄様"
+      },
+      "calledBy": {
+        "yuma": "刹那さん"
+      },
+      "speechStyle": {
+        "toYuma": "casual",
+        "keigo": false,
+        "politeForm": false,
+        "note": "兄様は呼称。会話自体はタメ口。敬語・丁寧語は使わない。"
+      },
+      "personality": {
+        "confirmed": [
+          "優真を兄様と呼び慕っている",
+          "声優を目指している",
+          "優真には敬語・丁寧語を使わない",
+          "VoiceStep参加者",
+          "優真と血のつながりはない",
+          "優真と対面で会ったことがない",
+          "優真より年下"
+        ]
+      },
+      "voiceNotes": {
+        "tone": "兄様呼び＋タメ口。慕いは呼称に込め、文体は砕ける",
+        "sampleLine": "兄様、今日の練習、聞いてよ……。",
+        "avoidExamples": [
+          "兄様、聞いてもらえますか",
+          "兄様、お疲れ様です"
+        ]
+      }
+    }
+  ],
+  "relationships": [
+    {
+      "ageOrder": "yuma_older_than_setsuna",
+      "from": "setsuna",
+      "to": "yuma",
+      "type": "admiration",
+      "honorific": "兄様",
+      "speechStyleToTarget": "casual",
+      "bloodRelated": false,
+      "metInPerson": false,
+      "description": "刹那は優真を兄様と呼び、心から慕っている。血縁はない。会話はタメ口で、敬語・丁寧語は使わない。",
+      "meetingContext": {
+        "project": "VoiceStep",
+        "path": "公式Discord → 派生個人Discordサーバー",
+        "neverMetInPerson": true
+      }
+    },
+    {
+      "from": "yuma",
+      "to": "setsuna",
+      "type": "cared_for_by",
+      "honorific": "刹那さん",
+      "bloodRelated": false,
+      "metInPerson": false,
+      "description": "優真は刹那を刹那さんと呼び、気遣いながら接する。対面での再会経験はない。",
+      "meetingContext": {
+        "project": "VoiceStep",
+        "path": "公式Discord → 派生個人Discordサーバー",
+        "neverMetInPerson": true
+      }
+    }
+  ],
+  "geography": {
+    "distance": "関東と北海道は離れている",
+    "defaultContact": "Discord（テキスト・ボイス）、オンライン通話・メッセージ",
+    "metInPerson": false,
+    "inPersonRequiresReason": true
+  },
+  "discord": {
+    "primaryStage": true,
+    "servers": {
+      "official": {
+        "name": "VoiceStep 公式 Discord",
+        "role": "最初の参加・大人数の練習"
+      },
+      "derivedPersonal": {
+        "name": null,
+        "role": "知り合いの場。主な交流はここ",
+        "channels": [
+          { "name": "#雑談", "type": "text", "purpose": "日常のやり取り" },
+          { "name": "#台本", "type": "text", "purpose": "台本共有・添削" },
+          { "name": "#練習", "type": "voice", "purpose": "読み合わせ・演技指導" },
+          { "name": "#録音置き場", "type": "text", "purpose": "音声・収録報告" }
+        ]
+      }
+    },
+    "scriptFormat": {
+      "stageDirectionPrefix": "Discord ― {server} ― {channel}（{text|voice}）",
+      "speechRulesSameAsInPerson": true,
+      "setsunaTextStyle": "兄様＋タメ口",
+      "yumaTextStyle": "刹那さん"
+    }
+  },
+  "scriptFormat": {
+    "convention": "voiceland",
+    "dialoguePattern": "役名：セリフ",
+    "stageDirectionPattern": "0：ト書き",
+    "guidelinePath": ".cursor/commands/ボイストランド_台本ガイドライン.md"
+  },
+  "unsetFields": [
+    "title",
+    "characters.yuma.age",
+    "characters.yuma.gender",
+    "characters.setsuna.age",
+    "characters.setsuna.gender",
+    "relationships.ageGapYears",
+    "relationships.experienceGap",
+    "relationships.romance",
+    "voiceStepProject.derivedServerOwner",
+    "discord.servers.derivedPersonal.name"
+  ]
+}
