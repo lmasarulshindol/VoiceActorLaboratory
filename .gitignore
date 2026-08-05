@@ -17,3 +17,10 @@ takes/
 *.flac
 *.aiff
 *.aif
+
+# 環境変数・APIトークン（Discord Bot 等）
+.env
+.env.*
+!.env.example
+discord-bot/.env
+discord-bot/work/

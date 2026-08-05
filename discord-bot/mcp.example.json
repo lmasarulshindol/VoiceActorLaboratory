@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "discord": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@pasympa/discord-mcp"],
+      "env": {
+        "DISCORD_TOKEN": "YOUR_DISCORD_BOT_TOKEN_HERE",
+        "DISCORD_MESSAGE_CONTENT": "false",
+        "DISCORD_GUILD_MEMBERS": "false"
+      }
+    }
+  }
+}
