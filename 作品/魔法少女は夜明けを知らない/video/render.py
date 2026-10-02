@@ -25,6 +25,7 @@ from cues import (
     SHAKE,
     SPEAKER_COLORS,
     TITLE,
+    VOICE_NAMES,
     Line,
     parse_script,
     section_at,
@@ -228,9 +229,9 @@ def build_ass(events: list[Event], total: float) -> str:
     end_start = total - END_SEC + 1.0
     credits = [
         ("Title", 0.0, r"\pos(960,300)", "おわり"),
-        ("Sub", 1.5, r"\pos(960,560)\fsp2", "出演（AI音声：Gemini TTS）"),
-        ("Sub", 1.5, r"\pos(960,630)\fsp2", "灯里：Zephyr　　澪：Kore"),
-        ("Sub", 1.5, r"\pos(960,690)\fsp2", "ノクス：Charon　　災禍：Despina"),
+        ("Sub", 1.5, r"\pos(960,560)\fsp2", "出演（AI音声：ElevenLabs v4）"),
+        ("Sub", 1.5, r"\pos(960,630)\fsp2", f"灯里：{VOICE_NAMES['灯里']}　　澪：{VOICE_NAMES['澪']}"),
+        ("Sub", 1.5, r"\pos(960,690)\fsp2", f"ノクス：{VOICE_NAMES['ノクス']}　　災禍：{VOICE_NAMES['災禍']}"),
         ("Sub", 1.5, r"\pos(960,790)\fsp2", "脚本・演出：Voice Actor Laboratory　　イラスト：AI生成"),
     ]
     for style, delay, pos, text in credits:

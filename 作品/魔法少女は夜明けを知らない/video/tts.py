@@ -1,94 +1,94 @@
-"""全セリフを Gemini TTS で合成する（既存ファイルはスキップ）.
+"""全セリフを ElevenLabs v4 で合成する（既存ファイルはスキップ）.
 
 使い方:
-  py -3 tts.py                                   # 未生成の行だけ合成
-  py -3 tts.py 126 164                           # 指定行を作り直す
-  py -3 tts.py --model gemini-3.8-flash-lite-tts # モデルを変えて合成
-  py -3 tts.py --upgrade                         # 既定モデル以外で作った行を作り直す
+  py -3 tts.py            # 未生成の行だけ合成
+  py -3 tts.py 126 164    # 指定行を作り直す
 
-どの行をどのモデルで作ったかは build/voice_models.json に記録する。
+MP3 で受け取り、ミックス用に build/voice/*.wav（44.1kHz mono）へ変換する。
 """
 
 from __future__ import annotations
 
 import argparse
-import json
+import os
+import subprocess
 import sys
 import time
 
-from cues import ROOT, parse_script, voice_filename
+from cues import ROOT, STABILITY, parse_script, voice_filename
 
-GEMINI_ROOT = ROOT.parents[2] / "gemini-tts"
-sys.path.insert(0, str(GEMINI_ROOT / "src"))
+GEMINI_TTS_ROOT = ROOT.parents[2] / "gemini-tts"
+sys.path.insert(0, str(GEMINI_TTS_ROOT / "src"))
 
-from gemini_tts.audio import save_wav  # noqa: E402
-from gemini_tts.client import GeminiTTSClient  # noqa: E402
-from gemini_tts.config import DEFAULT_MODEL, load_config  # noqa: E402
+from eleven_tts import ElevenV4Client  # noqa: E402
 
 VOICE_DIR = ROOT / "build" / "voice"
-MODELS_JSON = ROOT / "build" / "voice_models.json"
-DELAY_SEC = 2.0
-MAX_RETRIES = 5
+MP3_DIR = ROOT / "build" / "voice_mp3"
+DELAY_SEC = 0.4
+MAX_RETRIES = 3
+SEED = 7
 
 
-def load_models() -> dict[str, str]:
-    if MODELS_JSON.is_file():
-        return json.loads(MODELS_JSON.read_text(encoding="utf-8"))
-    return {}
+def load_api_key() -> str:
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        load_dotenv = None
+    if load_dotenv is not None:
+        load_dotenv(GEMINI_TTS_ROOT / ".env")
+    return os.environ.get("ELEVENLABS_API_KEY", "").strip()
+
+
+def mp3_to_wav(src, dest) -> None:
+    subprocess.run(
+        ["ffmpeg", "-y", "-loglevel", "error", "-i", str(src), "-ac", "1", "-ar", "44100", str(dest)],
+        check=True,
+    )
 
 
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("lines", nargs="*", type=int)
-    ap.add_argument("--model")
-    ap.add_argument("--upgrade", action="store_true")
     args = ap.parse_args(argv)
 
-    cfg = load_config(env_path=GEMINI_ROOT / ".env", overrides={"model": args.model})
-    client = GeminiTTSClient(cfg.require_api_key(), model=cfg.model, sample_rate=cfg.sample_rate)
+    key = load_api_key()
+    if not key:
+        print("ELEVENLABS_API_KEY が未設定です。gemini-tts/.env に記入してください。")
+        return 2
+    client = ElevenV4Client(key)
     VOICE_DIR.mkdir(parents=True, exist_ok=True)
-    models = load_models()
+    MP3_DIR.mkdir(parents=True, exist_ok=True)
 
     redo = set(args.lines)
-    if args.upgrade:
-        redo |= {int(no) for no, m in models.items() if m != DEFAULT_MODEL}
-
     targets = [ln for ln in parse_script() if not ln.silent]
     errors: list[int] = []
     for ln in targets:
-        out = VOICE_DIR / voice_filename(ln)
-        if out.is_file() and out.stat().st_size > 0 and ln.no not in redo:
-            models.setdefault(str(ln.no), DEFAULT_MODEL)
+        wav = VOICE_DIR / voice_filename(ln)
+        if wav.is_file() and wav.stat().st_size > 0 and ln.no not in redo:
             continue
+        mp3 = MP3_DIR / wav.with_suffix(".mp3").name
         for attempt in range(MAX_RETRIES + 1):
             try:
-                result = client.synthesize(ln.spoken, voice=ln.voice or "Kore", style=ln.style)
-                save_wav(out, result.audio_wav, sample_rate=client.sample_rate)
-                models[str(ln.no)] = result.model
-                MODELS_JSON.write_text(json.dumps(models, ensure_ascii=False, indent=1), encoding="utf-8")
-                print(f"[ok] {ln.no:03d} {ln.speaker} {result.model} {ln.spoken[:24]}", flush=True)
+                audio = client.synthesize(
+                    ln.tts_text, ln.voice or "", stability=STABILITY.get(ln.speaker, 0.4), seed=SEED
+                )
+                mp3.write_bytes(audio)
+                mp3_to_wav(mp3, wav)
+                print(f"[ok] {ln.no:03d} {ln.speaker} {ln.tts_text[:40]}", flush=True)
                 break
             except Exception as exc:  # noqa: BLE001
                 msg = str(exc)
-                if "PerDay" in msg:
-                    print(f"[daily quota] {ln.no:03d} {cfg.model}: 本日の上限に達しました", flush=True)
-                    errors.append(ln.no)
-                    MODELS_JSON.write_text(json.dumps(models, ensure_ascii=False, indent=1), encoding="utf-8")
-                    print(f"done: stopped at {ln.no}", flush=True)
+                if "invalid_api_key" in msg or "authentication" in msg or "quota_exceeded" in msg:
+                    print(f"[fatal] {ln.no:03d} {msg}", flush=True)
                     return 2
-                low = msg.lower()
-                retryable = "429" in low or "resource_exhausted" in low or "503" in low or "500" in low
-                if retryable and attempt < MAX_RETRIES:
-                    wait = 20.0 * (attempt + 1)
-                    print(f"[wait {wait:.0f}s] {ln.no:03d}", flush=True)
-                    time.sleep(wait)
+                if attempt < MAX_RETRIES and ("429" in msg or " 5" in msg[:20]):
+                    time.sleep(10.0 * (attempt + 1))
                     continue
-                print(f"[error] {ln.no:03d} {exc}", flush=True)
+                print(f"[error] {ln.no:03d} {msg}", flush=True)
                 errors.append(ln.no)
                 break
         time.sleep(DELAY_SEC)
 
-    MODELS_JSON.write_text(json.dumps(models, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"done: targets={len(targets)} errors={errors}", flush=True)
     return 1 if errors else 0
 

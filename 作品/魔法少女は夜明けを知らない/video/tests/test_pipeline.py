@@ -44,12 +44,33 @@ def test_沈黙だけの行は合成しない(lines):
     assert silent == [31, 63, 70, 103, 121]
 
 
-def test_演技指示は基本と状態と行指示を連結する():
-    style = cues.style_for(126, "ノクス")
-    assert style.startswith(cues.BASE_STYLE["ノクス"])
-    assert cues.LINE_STYLE[126] in style
-    assert "骨折" in cues.style_for(80, "澪")
-    assert "骨折" not in cues.style_for(30, "澪")
+def test_演技タグは基本と状態と行タグを重複なく連結する():
+    tags = cues.tags_for(126, "ノクス")
+    assert tags.startswith(cues.BASE_TAGS["ノクス"])
+    assert cues.LINE_TAGS[126] in tags
+    assert "[in pain]" in cues.tags_for(80, "澪")
+    assert "[in pain]" not in cues.tags_for(30, "澪")
+    assert cues.tags_for(146, "ノクス").count("[calm]") == 1
+
+
+def test_基本タグを外す行():
+    assert "[calm]" not in cues.tags_for(88, "ノクス")
+    assert "[whispers]" not in cues.tags_for(151, "災禍")
+
+
+def test_演技タグはト書き行に付けない(lines):
+    directions = {ln.no for ln in lines if ln.is_direction}
+    assert not directions & set(cues.LINE_TAGS)
+
+
+def test_合成テキストはタグと読みを連結する(lines):
+    ln = next(x for x in lines if x.no == 16)
+    assert ln.tts_text == "[battle cry][shouting] せんこうっ！！"
+
+
+def test_全役に_ElevenLabs_のボイスIDがある():
+    assert set(cues.VOICES) == set(cues.VOICE_NAMES) == set(cues.STABILITY)
+    assert all(len(v) == 20 for v in cues.VOICES.values())
 
 
 @pytest.mark.parametrize(
@@ -61,7 +82,7 @@ def test_場面の割り当て(no, expected):
 
 
 def test_演出データの行番号は台本の範囲内():
-    for table in (cues.SFX, cues.FLASH, cues.LINE_STYLE):
+    for table in (cues.SFX, cues.FLASH, cues.LINE_TAGS):
         assert all(1 <= no <= 172 for no in table)
     assert all(name in fx.SFX_BANK for names in cues.SFX.values() for name in names)
     assert all(name is None or name in fx.BGM_BANK for _, name in cues.BGM_SECTIONS)
