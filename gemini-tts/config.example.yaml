@@ -1,0 +1,9 @@
+# gemini-tts 設定例（必要なら config.yaml にコピーして使う）
+# config.yaml は任意。APIキーは .env を推奨。
+
+model: gemini-3.8-flash-tts
+voice: Kore
+# language_code: ja-JP
+# style: 落ち着いたナレーション調で
+output_dir: output
+sample_rate: 24000

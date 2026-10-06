@@ -1,0 +1,30 @@
+# APIキー・ローカル環境変数
+.env
+.env.*
+!.env.example
+
+# 生成音声（output / projects/*/audio は管理外）
+output/*
+!output/.gitkeep
+projects/**/audio/**
+projects/**/export/**
+*.wav
+*.mp3
+*.m4a
+*.ogg
+*.flac
+*.aiff
+*.aif
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+*.egg-info/
+.coverage
+htmlcov/
+.venv/
+venv/
+dist/
+build/
