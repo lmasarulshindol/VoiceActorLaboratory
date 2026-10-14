@@ -1,0 +1,15 @@
+# 役名 → Gemini プリビルトボイス
+voices:
+  語り手: Alnilam
+  佐藤: Orus
+  田中: Puck
+  恵美: Aoede
+  部長: Charon
+  看護師: Despina
+  サキ: Leda
+  謎の女性: Leda
+  女性: Leda
+  車内アナウンス: Schedar
+  同僚たち: Fenrir
+  _caption: Schedar
+  _default: Kore

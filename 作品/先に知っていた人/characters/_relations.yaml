@@ -1,0 +1,199 @@
+# 関係の正本。キャラファイルへ全文コピーしない。
+# status: unknown | name_only | acquaintance | regular | intimate | estranged | hostile | asymmetric
+
+relations:
+  - id: saku_ritsu
+    from: kiryu_saku
+    to: takato_ritsu
+    status: acquaintance
+    first_met: 今夜、事務所。ただし三年前に担当名として書類上は交差している
+    call_from: お前／苗字なし
+    call_to: 桐生さん
+    trust: 2
+    from_view: 丁寧すぎる。心配の前に「普通」を置く男。
+    to_view: 一度事故で閉じた人。同じ結論を、もう一度書いてくれるはず。
+    info_gap:
+      from_has: 開始時はほぼ無し。再生後に「待て」の声。
+      to_has: 朔の経歴、退職、母の件の担当名。書面が欲しい本当の理由。
+    taboo: 母親の死を「事件」と呼ぶこと（律側）
+    arc: 依頼人→現場にいた兄→書面を拒まれる
+
+  - id: ritsu_saku
+    from: takato_ritsu
+    to: kiryu_saku
+    status: name_only
+    note: 開始時は律だけが名前を調べ済み。非対称。
+    first_met: 今夜が身体の初対面
+    call_from: 桐生さん
+    call_to: 高遠さん（翠が使う。朔は呼ばない）
+    trust: 3
+    from_view: 中立の元刑事。家を壊さず閉じられる人。
+    to_view: まだ空欄。再生までは「依頼人」。
+    info_gap:
+      from_has: 朔が三年前に閉じた事実。今も探す仕事をしないこと。
+      to_has: 律が現場にいたこと（再生まで不明）。
+    taboo: タイムカードを「不在の証明」に使うこと（朔が壊す）
+    arc: 頼る→否認→本音（証言者を消したい）
+
+  - id: saku_akari
+    from: kiryu_saku
+    to: takato_akari
+    status: unknown
+    first_met: 今夜、録音としてのみ
+    call_from: 灯
+    call_to: 桐生さん
+    trust: 4
+    from_view: 開始時は失踪者の声。終幕では、先に自分を盤面に置いた人。
+    to_view: 三年前に供述をノイズにした担当。だからこそ、宛先にする。
+    info_gap:
+      from_has: 再生前は無し。
+      to_has: 朔の閉じ方、律が訪ねること、翠が上がること。
+    taboo: 灯を「故人」として揃えること
+    arc: 声だけ→宛先が自分だと知る→残響を席として引き受ける
+
+  - id: akari_saku
+    from: takato_akari
+    to: kiryu_saku
+    status: name_only
+    note: 灯は母の担当として既知。朔は声に会うまで未知。非対称。
+    first_met: 灯側は三年前の担当名。朔側は今夜の録音
+    call_from: 桐生さん
+    call_to: 灯（本人不在）
+    trust: 3
+    from_view: 閉じた人。閉じさせないために、先に声を置く。
+    to_view: 空欄から、証人へ。
+    info_gap:
+      from_has: 今夜の全段取り。
+      to_has: 灯が生きていること（翠登場まで不明）。
+    taboo: 探さないで、を捨て台詞として聞くこと
+    arc: 宛先として使う→生存を預ける→不在のまま結論を渡す
+
+  - id: saku_sena
+    from: kiryu_saku
+    to: sena_midori
+    status: regular
+    first_met: 刑事時代。相棒
+    call_from: 瀬名／翠とは呼ばないことが多い
+    call_to: お前（朔へ）
+    trust: 7
+    from_view: 先に来る人。責め切らないが、閉じ方は許していない。
+    to_view: 中立を信じて、声を落とした元相棒。
+    info_gap:
+      from_has: 翠が現職かどうかは濁している。
+      to_has: 灯の今朝の連絡。生存。下で待っていたこと。
+    taboo: 三年前の供述を「混乱」で片づけること
+    arc: 元相棒→今夜の配置者→住所は言わない協力者
+
+  - id: sena_saku
+    from: sena_midori
+    to: kiryu_saku
+    status: regular
+    first_met: 刑事時代
+    call_from: お前／朔
+    call_to: 瀬名
+    trust: 6
+    from_view: まだ、同じ結論を書きそうな人。だから先に紙を置く。
+    to_view: 信頼しているが、今夜の入場理由は後から知る。
+    info_gap:
+      from_has: 灯の生存と段取り。
+      to_has: 翠を「心配」だと最初は受け取る。
+    taboo: 灯の住所を朔に渡して、探す仕事へ戻すこと
+    arc: 心配の顔で上がる→記録を置く→書面を止めさせる
+
+  - id: ritsu_akari
+    from: takato_ritsu
+    to: takato_akari
+    status: estranged
+    first_met: 兄妹。幼時から
+    call_from: 灯
+    call_to: 兄さん（録音序盤のみ。宛先パートでは呼ばない）
+    trust: 2
+    from_view: 守る対象。同時に、家を壊す証言者。
+    to_view: 公式の物語を欲しがる人。先に席を外す理由。
+    info_gap:
+      from_has: 十日前の言い合い。現場にいたこと。
+      to_has: 兄が朔を訪ねること。翠経由の今夜。
+    taboo: 母の死を事件と呼ぶこと／灯を生きた証人として扱うこと
+    arc: 普通の兄妹→言い合い→失踪へ書き換え→物語を失う
+
+  - id: akari_ritsu
+    from: takato_akari
+    to: takato_ritsu
+    status: estranged
+    first_met: 兄妹
+    call_from: （宛先パートでは名を呼ばない）
+    call_to: 灯
+    trust: 1
+    from_view: 待って、と言いながら、話すな、と閉じる人。
+    to_view: 心配している妹。実際は逃げた証人。
+    info_gap:
+      from_has: 兄の次の手（朔への依頼）。
+      to_has: 灯が翠に生存を渡したこと（知らない）。
+    taboo: 兄さん、と最後まで頼ること（灯はしない）
+    arc: 兄の物語から撤退→録音で先回り→不在のまま勝つ
+
+  - id: ritsu_sena
+    from: takato_ritsu
+    to: sena_midori
+    status: acquaintance
+    note: 律は今夜、知らないふりをする。翠は既知。非対称に近い。
+    first_met: 三年前の聴取
+    call_from: どちら様ですか（今夜）
+    call_to: 高遠さん
+    trust: 1
+    from_view: 終わった事故を、また持ってくる人。
+    to_view: 覚えてないふりが上手い、当時の参考人。
+    info_gap:
+      from_has: 翠が三年前の聴取官だったこと（本当は覚えている）。
+      to_has: 律が今夜、書面を取りに来たこと。灯の生存。
+    taboo: お母様の件（律が「終わった」と切る）
+    arc: 知らないふり→封筒の前で息が浅くなる→物語が他人の手へ
+
+  - id: sena_ritsu
+    from: sena_midori
+    to: takato_ritsu
+    status: acquaintance
+    first_met: 三年前の聴取
+    call_from: 高遠さん
+    call_to: 瀬名翠（名乗る）
+    trust: 2
+    from_view: 母の件の参考人。今夜は依頼人の顔をしている。
+    to_view: 侵入者。事故を終わらせない人。
+    info_gap:
+      from_has: 当時の供述の扱い。灯の今朝の連絡。
+      to_has: 翠が下で待っていたこと。
+    taboo: 灯の居所を律に渡すこと
+    arc: 既知として上がる→録音を渡す→住所は言わない
+
+  - id: akari_sena
+    from: takato_akari
+    to: sena_midori
+    status: regular
+    note: 私的連絡は今朝。面識の深さは「生存を預けられる」程度。
+    first_met: 三年前の事情聴取。以降、断続
+    call_from: （作中では直接呼ばない。連絡文面のみ）
+    call_to: 灯さん
+    trust: 6
+    from_view: 供述を持っていた人。今夜、兄より先に上げられる人。
+    to_view: 生きている証人。住所は本人が決める。
+    info_gap:
+      from_has: 翠が朔の元相棒であること。今夜上がること。
+      to_has: 灯の居所（持っているが言わない）。
+    taboo: 生存を、兄の前で住所つきにすること
+    arc: 供述の共有者→今朝の段取り→代理で部屋に入る
+
+  - id: sena_akari
+    from: sena_midori
+    to: takato_akari
+    status: regular
+    first_met: 三年前
+    call_from: 灯さん
+    call_to: （不在）
+    trust: 7
+    from_view: 採用されなかった声。だから今夜、先に置く。
+    to_view: 閉じなかった側。
+    info_gap:
+      from_has: 生存、居所（言わない）、今夜の段取り。
+      to_has: 翠が封筒に何を入れたか、までは灯も全部は見ていない。
+    taboo: 探す仕事へ戻すこと
+    arc: 記録の保管者→生存の預かり→居所は本人に返す
