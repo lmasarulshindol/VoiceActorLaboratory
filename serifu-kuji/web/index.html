@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>セリフくじ</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="header">
+        <h1>今日のひとこと</h1>
+        <p class="lead">台本を直して、読みたい声を引く。</p>
+      </header>
+
+      <section class="filters" aria-label="絞り込み">
+        <div class="kinds" role="radiogroup" aria-label="種類">
+          <label><input type="radio" name="kind" value="" checked />指定なし</label>
+          <label><input type="radio" name="kind" value="dialogue" />セリフ</label>
+          <label><input type="radio" name="kind" value="narration" />ナレーション</label>
+        </div>
+        <label class="field">
+          想定時間
+          <select id="seconds">
+            <option value="">指定なし</option>
+            <option value="10">10秒</option>
+            <option value="20">20秒</option>
+            <option value="30">30秒</option>
+          </select>
+        </label>
+        <label class="field">
+          性別
+          <select id="gender">
+            <option value="">指定なし</option>
+            <option value="male">男性</option>
+            <option value="female">女性</option>
+            <option value="any">不問</option>
+          </select>
+        </label>
+        <label class="field">
+          サブカテゴリ
+          <select id="category"></select>
+        </label>
+        <label class="field">
+          タグ
+          <select id="tag"></select>
+        </label>
+        <label class="field">
+          読み方
+          <select id="tone"></select>
+        </label>
+      </section>
+
+      <article class="card" id="card">
+        <p class="badge" id="badge"></p>
+        <p class="direction" id="direction"></p>
+        <p class="body" id="body"></p>
+        <p class="meta" id="meta"></p>
+      </article>
+
+      <div class="actions">
+        <button type="button" id="draw" class="primary">引く</button>
+        <button type="button" id="copy">コピー</button>
+        <button type="button" id="favorite">☆ お気に入り</button>
+        <button type="button" id="reload">読み直す</button>
+      </div>
+
+      <section class="recent-box">
+        <h2>さっき引いたもの</h2>
+        <div id="recent" class="recent"></div>
+      </section>
+
+      <p id="status" class="status" aria-live="polite"></p>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>
