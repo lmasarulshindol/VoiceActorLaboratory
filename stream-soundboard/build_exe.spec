@@ -1,10 +1,13 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""Stream Soundboard の PyInstaller 設定。"""
+"""Stream Soundboard の PyInstaller 設定（onedir・依存縮小）。"""
 
-from PyInstaller.utils.hooks import collect_all
+from PyInstaller.utils.hooks import collect_dynamic_libs
 
-datas = []
+# PortAudio / libsndfile の DLL だけ拾う（numpy の collect_all は肥大化の原因なので使わない）
 binaries = []
+binaries += collect_dynamic_libs("sounddevice")
+binaries += collect_dynamic_libs("soundfile")
+
 hiddenimports = [
     "stream_soundboard",
     "stream_soundboard.audio_devices",
@@ -13,24 +16,36 @@ hiddenimports = [
     "stream_soundboard.config_store",
     "stream_soundboard.sample_loader",
     "stream_soundboard.widget_gui",
+    "numpy",
+    "sounddevice",
+    "soundfile",
+    "_soundfile_data",
 ]
-
-for pkg in ("sounddevice", "soundfile", "numpy"):
-    pkg_datas, pkg_binaries, pkg_hidden = collect_all(pkg)
-    datas += pkg_datas
-    binaries += pkg_binaries
-    hiddenimports += pkg_hidden
 
 a = Analysis(
     ["main.py"],
     pathex=[],
     binaries=binaries,
-    datas=datas,
+    datas=[],
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["pytest", "pytest_cov"],
+    excludes=[
+        "pytest",
+        "pytest_cov",
+        "numba",
+        "llvmlite",
+        "scipy",
+        "matplotlib",
+        "pandas",
+        "IPython",
+        "notebook",
+        "PIL",
+        "cv2",
+        "torch",
+        "tensorflow",
+    ],
     noarchive=False,
     optimize=0,
 )
@@ -40,20 +55,27 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name="StreamSoundboard",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    upx_exclude=[],
-    runtime_tmpdir=None,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=False,
+    upx_exclude=[],
+    name="StreamSoundboard",
 )

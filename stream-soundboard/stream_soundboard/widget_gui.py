@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import tkinter as tk
+import webbrowser
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 from typing import TYPE_CHECKING, Optional
@@ -24,6 +25,10 @@ from stream_soundboard.audio_devices import (
 from stream_soundboard.audio_mixer import AudioMixer, AudioMixerError
 from stream_soundboard.audio_player import AudioPlayer, AudioPlayerError
 from stream_soundboard.config_store import SLOT_COUNT, ConfigStore
+from stream_soundboard.help_content import (
+    HELP_TOPICS,
+    VB_CABLE_URL,
+)
 
 if TYPE_CHECKING:
     pass
@@ -77,14 +82,19 @@ class StreamSoundboardWidget:
         self._input_devices: list[DeviceInfo] = []
         self._output_devices: list[DeviceInfo] = []
 
+        self._help_windows: list[tk.Toplevel] = []
+
         self._setup_window()
+        self._build_menu()
         self._build_ui()
         self._refresh_listener_combo()
-        self._refresh_device_lists()
         self._refresh_buttons()
         self._apply_always_on_top()
-        if store.state.mix_enabled:
-            self.root.after(200, self._start_mix)
+        # デバイス列挙（~1s）は初回描画後に回し、ウィンドウ表示を優先する
+        self._input_var.set("読込中…")
+        self._output_var.set("読込中…")
+        self._set_status("起動中…")
+        self.root.after_idle(self._deferred_startup)
 
     def _setup_window(self) -> None:
         self.root.title("Stream Soundboard")
@@ -92,6 +102,114 @@ class StreamSoundboardWidget:
         self.root.minsize(240, 640)
         self.root.configure(bg=BG)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    def _build_menu(self) -> None:
+        """メニューバー（ヘルプ）を構築。"""
+        menubar = tk.Menu(self.root)
+        help_menu = tk.Menu(menubar, tearoff=0)
+        for label, title, body in HELP_TOPICS:
+            help_menu.add_command(
+                label=label,
+                command=lambda t=title, b=body: self._show_help_window(t, b),
+            )
+        help_menu.add_separator()
+        help_menu.add_command(
+            label="VB-CABLEのサイトを開く",
+            command=self._open_vb_cable_site,
+        )
+        menubar.add_cascade(label="ヘルプ", menu=help_menu)
+        self.root.config(menu=menubar)
+        self._menubar = menubar
+        self._help_menu = help_menu
+
+    def _open_vb_cable_site(self) -> None:
+        """VB-CABLE 公式ページをブラウザで開く。"""
+        try:
+            webbrowser.open(VB_CABLE_URL)
+            self._set_status("VB-CABLEサイトを開きました")
+        except Exception as exc:
+            messagebox.showerror(
+                "開けませんでした",
+                f"ブラウザを開けませんでした。\n{VB_CABLE_URL}\n\n{exc}",
+                parent=self.root,
+            )
+
+    def _show_help_window(self, title: str, body: str) -> None:
+        """スクロール可能なヘルプウィンドウを表示。"""
+        win = tk.Toplevel(self.root)
+        win.title(title)
+        win.geometry("420x520")
+        win.minsize(320, 360)
+        win.configure(bg=BG)
+        win.transient(self.root)
+
+        header = tk.Frame(win, bg=BG)
+        header.pack(fill="x", padx=10, pady=(10, 4))
+        tk.Label(
+            header,
+            text=title,
+            fg="#e8ecf2",
+            bg=BG,
+            font=("Segoe UI", 11, "bold"),
+            anchor="w",
+        ).pack(fill="x")
+
+        frame = tk.Frame(win, bg=BG)
+        frame.pack(fill="both", expand=True, padx=10, pady=4)
+
+        text = tk.Text(
+            frame,
+            wrap="word",
+            bg="#12151c",
+            fg=FG,
+            insertbackground=FG,
+            relief="flat",
+            font=("Segoe UI", 9),
+            padx=8,
+            pady=8,
+            highlightthickness=0,
+        )
+        scroll = ttk.Scrollbar(frame, orient="vertical", command=text.yview)
+        text.configure(yscrollcommand=scroll.set)
+        scroll.pack(side="right", fill="y")
+        text.pack(side="left", fill="both", expand=True)
+        text.insert("1.0", body)
+        text.configure(state="disabled")
+
+        footer = tk.Frame(win, bg=BG)
+        footer.pack(fill="x", padx=10, pady=(4, 10))
+        if "VB-CABLE" in title or "初期設定" in title:
+            tk.Button(
+                footer,
+                text="VB-CABLEのサイトを開く",
+                command=self._open_vb_cable_site,
+                bg="#2a4050",
+                fg="#e8ecf2",
+                relief="flat",
+                cursor="hand2",
+                font=("Segoe UI", 9),
+            ).pack(side="left")
+        tk.Button(
+            footer,
+            text="閉じる",
+            command=win.destroy,
+            bg=BTN_BG,
+            fg="#e8ecf2",
+            relief="flat",
+            cursor="hand2",
+            font=("Segoe UI", 9),
+        ).pack(side="right")
+
+        self._help_windows.append(win)
+        win.protocol(
+            "WM_DELETE_WINDOW",
+            lambda w=win: self._on_help_close(w),
+        )
+
+    def _on_help_close(self, win: tk.Toplevel) -> None:
+        if win in self._help_windows:
+            self._help_windows.remove(win)
+        win.destroy()
 
     def _label(self, parent, text: str, **kw) -> tk.Label:
         opts = {"fg": FG, "bg": BG, "font": ("Segoe UI", 9), "anchor": "w"}
@@ -297,11 +415,19 @@ class StreamSoundboardWidget:
     # デバイス / ミックス
     # ------------------------------------------------------------------
 
+    def _deferred_startup(self) -> None:
+        """ウィンドウ表示後にデバイス取得とミックス開始を行う。"""
+        self._refresh_device_lists()
+        if self.store.state.mix_enabled:
+            self._start_mix()
+
     def _refresh_device_lists(self) -> None:
         try:
             self._input_devices = list_input_devices()
             self._output_devices = list_output_devices()
         except Exception as exc:
+            self._input_var.set("")
+            self._output_var.set("")
             messagebox.showerror("デバイス取得失敗", str(exc), parent=self.root)
             return
 
@@ -643,4 +769,10 @@ class StreamSoundboardWidget:
         self.player.stop()
         self.mixer.stop()
         self.store.save()
+        for win in list(self._help_windows):
+            try:
+                win.destroy()
+            except tk.TclError:
+                pass
+        self._help_windows.clear()
         self.root.destroy()

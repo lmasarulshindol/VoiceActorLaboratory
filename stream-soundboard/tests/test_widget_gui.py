@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from stream_soundboard import help_content
 from stream_soundboard.audio_devices import DeviceInfo
 from stream_soundboard.audio_player import AudioPlayer
 from stream_soundboard.config_store import ConfigStore
@@ -58,6 +59,9 @@ def widget(tk_root, tmp_path: Path):
         patch("stream_soundboard.widget_gui.find_device_by_name", return_value=default_out),
     ):
         w = StreamSoundboardWidget(tk_root, store, player=player, mixer=mixer)
+        # after_idle(_deferred_startup) をパッチ有効中に消化する
+        tk_root.update_idletasks()
+        tk_root.update()
     return w
 
 
@@ -66,7 +70,11 @@ class TestWidgetInit:
         assert len(widget._slot_buttons) == 10
 
     def test_初期ステータス(self, widget: StreamSoundboardWidget):
-        assert widget._status_var.get() in ("準備完了", "デバイス一覧を更新")
+        assert widget._status_var.get() in (
+            "準備完了",
+            "デバイス一覧を更新",
+            "起動中…",
+        )
 
     def test_未割当ボタン表示(self, widget: StreamSoundboardWidget):
         text = widget._slot_buttons[0].cget("text")
@@ -195,3 +203,29 @@ class TestOptions:
         assert widget.store.state.always_on_top is True
         assert widget._status_var.get() == "最前面: ON"
         assert widget.root.attributes("-topmost") in (1, True, "1")
+
+
+class TestHelpMenu:
+    def test_ヘルプメニューが存在する(self, widget: StreamSoundboardWidget):
+        end = widget._menubar.index("end")
+        assert end is not None
+        labels = [
+            widget._menubar.entrycget(i, "label")
+            for i in range(int(end) + 1)
+            if widget._menubar.type(i) == "cascade"
+        ]
+        assert "ヘルプ" in labels
+
+    def test_ヘルプウィンドウを開ける(self, widget: StreamSoundboardWidget):
+        widget._show_help_window("テスト", "本文サンプル")
+        assert len(widget._help_windows) == 1
+        win = widget._help_windows[0]
+        assert win.winfo_exists()
+        widget._on_help_close(win)
+        assert widget._help_windows == []
+
+    def test_VB_CABLEサイトを開く(self, widget: StreamSoundboardWidget):
+        with patch("stream_soundboard.widget_gui.webbrowser.open") as open_url:
+            widget._open_vb_cable_site()
+            open_url.assert_called_once_with(help_content.VB_CABLE_URL)
+        assert "VB-CABLE" in widget._status_var.get()
