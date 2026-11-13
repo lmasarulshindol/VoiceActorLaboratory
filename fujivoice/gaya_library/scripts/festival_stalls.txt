@@ -1,0 +1,82 @@
+# ガヤ台本: 縁日屋台 (festival_stalls)
+# density=normal / ElevenLabs v4
+
+@clip P1
+F1:
+[cheerful] 射的、景品小さいけど当てたい、三発でいける？
+M1:
+[laughing softly] 腕の振りを抑えろ、景品より写真が映える
+F1:
+[teasing] 負けたら焼きそば奢り、覚悟してね
+M2:
+[casual] 奢りは二人で割る、屋台は現金しか使えない
+F1:
+[amused] レジ袋要らない文化、ここではまだ現金派ね
+M2:
+[grateful] 小銭持ってきて正解だった
+M2:
+[casual] じゃあ、その話で進めよう、そうしよう、いいわね
+
+@clip P2
+M3:
+[cheerful] 金魚すくい、二杯目で当たる気がするんだ
+F2:
+[skeptical] 気だけで当たらないわよ、紙の濡れ方に注意
+M3:
+[matter-of-fact] 紙は角から、最後まで流さない、教えてもらった
+F3:
+[quietly] 混むから子供の後ろ、足元気をつけてね
+M3:
+[reassuring] 了解、すくったら水は店の桶へ
+F2:
+[laughing softly] ルール守るいい子、景品より誉め言葉ね
+F2:
+[casual] じゃあ、その話で進めよう、そうしよう、いいわね
+
+@clip P3
+F4:
+[casual] 盆踊り、曲が変わった、リズム早いから足慣らし
+M4:
+[amused] 俺は縁の外で拍手、輪の中は酔っ払い多い
+F4:
+[teasing] 酔ってないわよ、浴衣の帯が緩むだけ
+M5:
+[helpful] 帯直すなら幕の裏、人が少ない時間狙って
+F4:
+[grateful] ありがと、休憩で直す、先にりんご飴買う
+M5:
+[casual] 私はかき氷、シロップはイチゴで
+M5:
+[casual] じゃあ、その話で進めよう、そうしよう、いいわね
+
+@clip P4
+M6:
+[sighing] 花火の時間、屋台が一斉に閉じ始める
+F5:
+[matter-of-fact] 閉店前に求飯焼く店は最後、並ぶなら今
+F6:
+[worried] 人波怖いから、手を繋いで移動しましょう
+M6:
+[reassuring] 繋ぐ、迷子の集合場所は赤い鳥居ね
+F5:
+[calm] 鳥居は西口、地図アプリも念のため開けといて
+F6:
+[grateful] 準備万端、花火、上向いて見よう
+F6:
+[casual] じゃあ、その話で進めよう、そうしよう、いいわね、それでいこう
+
+@clip M1
+F2:
+[muttering] ゆちゃん焼、まだ一個…
+
+@clip M2
+M3:
+[shouting] 次の方、どうぞ！
+
+@clip X1
+F3:
+[short] いらっしゃい！
+
+@clip X2
+M4:
+[short] 一つください！

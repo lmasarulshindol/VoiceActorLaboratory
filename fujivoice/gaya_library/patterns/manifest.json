@@ -1,0 +1,130 @@
+[
+  {
+    "id": "isekai_tavern",
+    "title": "異世界酒場",
+    "density": "normal",
+    "file": "isekai_tavern_30s.mp3",
+    "tracks": 10,
+    "chars": 944
+  },
+  {
+    "id": "isekai_guild",
+    "title": "冒険者ギルド受付前",
+    "density": "normal",
+    "file": "isekai_guild_30s.mp3",
+    "tracks": 10,
+    "chars": 900
+  },
+  {
+    "id": "isekai_gate_market",
+    "title": "城壁門・市場",
+    "density": "normal",
+    "file": "isekai_gate_market_30s.mp3",
+    "tracks": 10,
+    "chars": 933
+  },
+  {
+    "id": "school_hallway_after",
+    "title": "放課後の廊下／部室前",
+    "density": "normal",
+    "file": "school_hallway_after_30s.mp3",
+    "tracks": 10,
+    "chars": 933
+  },
+  {
+    "id": "school_rooftop_lunch",
+    "title": "屋上・昼休み",
+    "density": "normal",
+    "file": "school_rooftop_lunch_30s.mp3",
+    "tracks": 10,
+    "chars": 928
+  },
+  {
+    "id": "family_restaurant",
+    "title": "ファミレス",
+    "density": "normal",
+    "file": "family_restaurant_30s.mp3",
+    "tracks": 10,
+    "chars": 922
+  },
+  {
+    "id": "train_commute",
+    "title": "電車",
+    "density": "normal",
+    "file": "train_commute_30s.mp3",
+    "tracks": 10,
+    "chars": 920
+  },
+  {
+    "id": "convenience_night",
+    "title": "コンビニ夜",
+    "density": "normal",
+    "file": "convenience_night_30s.mp3",
+    "tracks": 10,
+    "chars": 911
+  },
+  {
+    "id": "battle_waiting",
+    "title": "バトル前控室",
+    "density": "normal",
+    "file": "battle_waiting_30s.mp3",
+    "tracks": 10,
+    "chars": 895
+  },
+  {
+    "id": "festival_stalls",
+    "title": "縁日屋台",
+    "density": "normal",
+    "file": "festival_stalls_30s.mp3",
+    "tracks": 10,
+    "chars": 919
+  },
+  {
+    "id": "spaceship_mess",
+    "title": "宇宙船食堂",
+    "density": "normal",
+    "file": "spaceship_mess_30s.mp3",
+    "tracks": 10,
+    "chars": 925
+  },
+  {
+    "id": "magic_academy_yard",
+    "title": "魔法学園中庭",
+    "density": "normal",
+    "file": "magic_academy_yard_30s.mp3",
+    "tracks": 10,
+    "chars": 900
+  },
+  {
+    "id": "office_morning",
+    "title": "オフィス朝",
+    "density": "normal",
+    "file": "office_morning_30s.mp3",
+    "tracks": 10,
+    "chars": 921
+  },
+  {
+    "id": "izakaya_welcome",
+    "title": "居酒屋歓迎会",
+    "density": "normal",
+    "file": "izakaya_welcome_30s.mp3",
+    "tracks": 10,
+    "chars": 910
+  },
+  {
+    "id": "hospital_night",
+    "title": "病院夜勤",
+    "density": "sparse",
+    "file": "hospital_night_30s.mp3",
+    "tracks": 5,
+    "chars": 287
+  },
+  {
+    "id": "abandoned_school",
+    "title": "廃校夜",
+    "density": "sparse",
+    "file": "abandoned_school_30s.mp3",
+    "tracks": 4,
+    "chars": 114
+  }
+]

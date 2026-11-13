@@ -1,0 +1,82 @@
+# ガヤ台本: 電車 (train_commute)
+# density=normal / ElevenLabs v4
+
+@clip P1
+M1:
+[casual] この時間帯、屋根上の足音より車内の会話の方が大きい
+F1:
+[quietly] 小声でいいから、次の駅で乗り換え案内聞こう
+M1:
+[matter-of-fact] あと二駅、優先席空いたから座る？
+F2:
+[calm] 立ってていいわ、足元ばっか見てたら目が疲れる
+M1:
+[grateful] じゃあ吊り革の位置、そちらに寄るね
+F2:
+[teasing] 寄りすぎ、隣の人にぶつかるわよ
+F2:
+[casual] じゃあ、その話で進めよう、そうしよう
+
+@clip P2
+F3:
+[worried] 遅延情報、五分行ってる、接続平気かな
+M2:
+[reassuring] 次の駅で五分ある、急がなくていい
+F3:
+[sighing] リモート明日のため資料読みたかったのに
+M3:
+[casual] スマホのオフライン保存使えば、トンネルでも読める
+F3:
+[grateful] そうだ、忘れてた、教えてくれて助かった
+M3:
+[amused] 電車あるある、乗った瞬間メール見ちゃう病
+M3:
+[casual] じゃあ、その話で進めよう、そうしよう
+
+@clip P3
+M4:
+[matter-of-fact] 終点近く、荷物は前に出そう、ドア横混む
+F4:
+[casual] リュック前に回す、後ろだと人に当たる
+M4:
+[laughing softly] 先輩の通勤テク、毎朝見て学んでる
+F5:
+[quietly] 次停車、足踏まれないよう間開けてね
+M4:
+[reassuring] 了解、改札出口は中央が早いって先輩言ってた
+F5:
+[grateful] その情報助かる、朝は分岐迷いがち
+F5:
+[casual] じゃあ、その話で進めよう、そうしよう、いいわね
+
+@clip P4
+F6:
+[cheerful] 今日の駅弁、ちょっと高かったけど味は悪くない
+M5:
+[skeptical] 値段の割に量が少ない気がするんだよな
+F6:
+[teasing] 夕方食べる予定なら、午前は我慢が正義
+M6:
+[casual] 正義は腸に響く、俺は駅のパン二個で凌ぐ
+F6:
+[laughing softly] 質素派とギャンブル派が横並び、面白い
+M6:
+[embarrassed] ギャンブルじゃない、予算管理だ
+M6:
+[casual] じゃあ、その話で進めよう、そうしよう、いいわね
+
+@clip M1
+M1:
+[muttering] 降りる駅、一つ飛ばした…
+
+@clip M2
+F2:
+[quietly] ドア閉まる、下がってください
+
+@clip X1
+F1:
+[short] 乗り換え！
+
+@clip X2
+M2:
+[short] 次で降りる！

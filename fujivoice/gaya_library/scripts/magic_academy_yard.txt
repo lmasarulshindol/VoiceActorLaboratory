@@ -1,0 +1,82 @@
+# ガヤ台本: 魔法学園中庭 (magic_academy_yard)
+# density=normal / ElevenLabs v4
+
+@clip P1
+F1:
+[cheerful] 中庭の花壇、今日の実習で水属性の霧、楽しみ
+M1:
+[worried] 楽しいけど制服濡れる、予備のローブ持ってきた？
+F1:
+[laughing softly] 持ってきた、隣の机の子に貸すくらい余裕
+F2:
+[teasing] 善人すぎ、点数は個人単位よ、共倒れ注意
+M1:
+[matter-of-fact] 共倒れしないよう、詠唱は各自で
+F2:
+[grateful] そうね、助け合いは心得の範囲で
+F2:
+[casual] じゃあ、その話で進めよう、そうしよう
+
+@clip P2
+M2:
+[casual] 古い石碑、触るなって書いてあるのに誰か触ってる
+F3:
+[annoyed] 見たわ、三年生だと思う、先生呼んだ方がいい
+M2:
+[quietly] 先に注意だけ、呼ばれると罰則重いから
+F3:
+[calm] 分かった、私から言う、君はそこ離れて
+M2:
+[grateful] 助かった、碑の光、さっき一瞬点いた
+F3:
+[worried] 無茶は卒業延期よ、覚悟して
+F3:
+[casual] じゃあ、その話で進めよう、そうしよう、いいわね
+
+@clip P3
+F4:
+[quietly] 昼休み、図書室より中庭の方が風通していい
+M3:
+[casual] 本持ってきた、宿題は演習帳だけ終わらせればいい
+F4:
+[teasing] 優等生顔、休憩は休憩、空見ようよ
+M4:
+[amused] 空に鳥じゃなく魔導浮遊灯が三つ、鳥除けか
+F4:
+[matter-of-fact] 定期点検のやつよ、夕方まで光る
+M3:
+[laughing softly] じゃあ字面の下、ベンチで閉じよう
+M3:
+[casual] じゃあ、その話で進めよう、そうしよう、いいわね
+
+@clip P4
+M5:
+[cheerful] 友情芝生エリア、新歓の勧誘がまた始まったぞ
+F5:
+[skeptical] 勧誘は簡潔にって掲示出てる、長話は避けて
+F6:
+[nervous] 話しかけられた、断り方わからなくて
+F5:
+[reassuring] お断りします、で十分、笑顔つければ大丈夫
+M5:
+[casual] 断ったら俺たちに合流しよう、こっちは静か
+F6:
+[grateful] 助けて、勧誘冊子はもらわなかった
+F6:
+[casual] じゃあ、その話で進めよう、そうしよう
+
+@clip M1
+F3:
+[muttering] 魔力、まだ半分…
+
+@clip M2
+M2:
+[quietly] チャイム、一時限戻り
+
+@clip X1
+F4:
+[short] お先に！
+
+@clip X2
+M4:
+[short] 移動！

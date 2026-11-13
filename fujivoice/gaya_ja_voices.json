@@ -1,0 +1,1683 @@
+{
+  "female": [
+    {
+      "id": "uWBQlb1gDVB4pLNUh1nU",
+      "name": "Sakura - Japanese Narration",
+      "gender": "female",
+      "age": "middle_aged",
+      "accent": "kanto"
+    },
+    {
+      "id": "xwDy9oDEtzWzFo6FqAI9",
+      "name": "scene_sumika",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "6ZReDmeRP9qcZuwNC3Vv",
+      "name": "aud_riri_V10",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "DpPUi15aFdxHd3pJG2EF",
+      "name": "aud_riri_V09",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "AMqL3sty7WcG3yYRe7lf",
+      "name": "aud_riri_V07",
+      "gender": "female",
+      "age": "young",
+      "accent": "kansai"
+    },
+    {
+      "id": "3fjRiFR1qpMZpeqXtmwX",
+      "name": "aud_riri_V05",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "etp1PCA4xqEUOa61C7BP",
+      "name": "aud_riri_V02",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "dp4HJlekKt0HZFHL2jQg",
+      "name": "Ayaka - Cute, Bright & Clear",
+      "gender": "female",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "5hxwoDKwOHAYjdu9RO9Z",
+      "name": "Riko",
+      "gender": "female",
+      "age": "young",
+      "accent": "ja-kanto"
+    },
+    {
+      "id": "sMn4G4mQjSqzhvSaltjg",
+      "name": "Ayana",
+      "gender": "female",
+      "age": "middle_aged",
+      "accent": "standard"
+    },
+    {
+      "id": "8PfKHL4nZToWC3pbz9U9",
+      "name": "Aoi – Gentle Breeze",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "0yh9saSHWVy78QG1HfNs",
+      "name": "Sumiko Ito",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "aRRpAlz9zwsfcqvwusHA",
+      "name": "Rie –  Natural Customer Care Agent",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "GR4dBIFsYe57TxyrHKXz",
+      "name": "EIKO　日本人女性",
+      "gender": "female",
+      "age": "middle_aged",
+      "accent": "kanto"
+    },
+    {
+      "id": "1czwMoQxv9Ni4H7M5hXx",
+      "name": "みーこ - クリアな公共案内",
+      "gender": "female",
+      "age": "middle_aged",
+      "accent": "standard"
+    },
+    {
+      "id": "NQZUZmZFxoCYFGj4gD2o",
+      "name": "あいこ",
+      "gender": "female",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "GxhGYQesaQaYKePCZDEC",
+      "name": "Sakura - Japanese Girl",
+      "gender": "female",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "a0MsDWokG5Xsuji8g8er",
+      "name": "Haru - Calm & Friendly Japanese Female",
+      "gender": "female",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "ozfS3gQtjFX3kQyJ12dX",
+      "name": "Saori-Japanese Female",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "tPngN48DaHQOvU1YFqtz",
+      "name": "malo",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "8EkOjt4xTPGMclNlh1pk",
+      "name": "もりおき(morioki)",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "80H5qqdq3bIO8OjFE6ue",
+      "name": "Yukari – Japanese Female Narrator",
+      "gender": "female",
+      "age": "middle_aged",
+      "accent": "standard"
+    },
+    {
+      "id": "iRDEKpk9hSfW2qkoxsr7",
+      "name": "Yona – Clear & Calm Voice",
+      "gender": "female",
+      "age": "middle_aged",
+      "accent": "kanto"
+    },
+    {
+      "id": "EnLxjGl88dNO1Jv6AZk2",
+      "name": "Miyu - 信頼性と深みのある明るくプロの声Multilingual (JP/EN)",
+      "gender": "female",
+      "age": "middle_aged",
+      "accent": "standard"
+    },
+    {
+      "id": "EGPLqH9Wz2tNLu58EJVR",
+      "name": "Sakura – Professional Japanese Narration",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "c2XJrw7TvNGtOc6r0ijG",
+      "name": "Harune - Japanese Professional Narration",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "RBnMinrYKeccY3vaUxlZ",
+      "name": "Sakura Suzuki",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "t3iNwCjYhE9IEQPVBlys",
+      "name": "Kinako – Warm Japanese Narrator",
+      "gender": "female",
+      "age": "middle_aged",
+      "accent": "standard"
+    },
+    {
+      "id": "PmgfHCGeS5b7sH90BOOJ",
+      "name": "Fumi - Calm Japanese Woman",
+      "gender": "female",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "nMLAJvHm96aMWubKsf0q",
+      "name": "Hijiri - Calm & Deep Female Narration",
+      "gender": "female",
+      "age": "middle_aged",
+      "accent": "standard"
+    },
+    {
+      "id": "wcs09USXSN5Bl7FXohVZ",
+      "name": "Satomi - Calm, smooth, clear female Japanese voice",
+      "gender": "female",
+      "age": "middle_aged",
+      "accent": "kyushu"
+    },
+    {
+      "id": "T7yYq3WpB94yAuOXraRi",
+      "name": "KONOHA - Soothing Sleep & Meditation",
+      "gender": "female",
+      "age": "middle_aged",
+      "accent": "kanto"
+    },
+    {
+      "id": "WQz3clzUdMqvBf0jswZQ",
+      "name": "Shizuka - Natural & Soft",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "G3EZ8O36A0x9lmeOtr0f",
+      "name": "Kaori – Relatable & Friendly Japanese Voice",
+      "gender": "female",
+      "age": "middle_aged",
+      "accent": "standard"
+    },
+    {
+      "id": "Raa94hHxcH2itBN60mKp",
+      "name": "MEI.(Japanese female animation voice)",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "uYwU1hsbnP5viqq9qhob",
+      "name": "いろはうた",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "RWZ1lnBIIgPBTpyCnKn2",
+      "name": "aud_riko_R2_07",
+      "gender": "female",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "DIcmWR2oXfmLIlrj43rH",
+      "name": "aud_riko_R2_06",
+      "gender": "female",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "lxNssjs8lZzgD44uVifH",
+      "name": "aud_riko_R2_04",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "T5zZhOYp2nr6YMG0xepT",
+      "name": "aud_riko_R2_02",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "q3eHxuMah31iifOfMrz0",
+      "name": "aud_riko_R2_01",
+      "gender": "female",
+      "age": "young",
+      "accent": "kyushu"
+    },
+    {
+      "id": "iTqcz0mjbxzCZAfsqojU",
+      "name": "aud_riko_V08",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "e2BxPFZzO0e4DYAokSlV",
+      "name": "aud_riko_V04",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "4lOQ7A2l7HPuG7UIHiKA",
+      "name": "aud_linette_V10",
+      "gender": "female",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "uQ3stul4tGaYV51y7No6",
+      "name": "aud_linette_V09",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "UwmChKysRWw5hwbzf6t6",
+      "name": "aud_linette_V08",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "Z5Rahxh8jMhJKEgBfCSS",
+      "name": "aud_linette_V07",
+      "gender": "female",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "l7ME2dcqpdvq6E8sCS24",
+      "name": "aud_linette_V06",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "LCjxmvbOHJFuUnh87ifL",
+      "name": "aud_linette_V04",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "ngvNHfiCrXLPAHcTrZK1",
+      "name": "aud_linette_V03",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "zzahs6DT06h2pEM743ds",
+      "name": "aud_marcela_V07",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "SYjaeawCEiQrxiyl1IWh",
+      "name": "aud_marcela_V06",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "NvhgGxXb4NEIE2LNSzzn",
+      "name": "aud_marcela_V05",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "ugYcuAusTuWCSOpJD0Xd",
+      "name": "aud_marcela_V03",
+      "gender": "female",
+      "age": "young",
+      "accent": "kansai"
+    },
+    {
+      "id": "RheKi7xIMX00tEyMU2i3",
+      "name": "aud_fia_V10",
+      "gender": "female",
+      "age": "young",
+      "accent": "kyushu"
+    },
+    {
+      "id": "EvcqZR7BFM66zSW3VqaP",
+      "name": "aud_fia_V09",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "gHBfNp2PWSyFgpPlzCOd",
+      "name": "aud_fia_V08",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "0ptCJp0xgdabdcpVtCB5",
+      "name": "aud_fia_V06",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "bZjtSxWhBPMzzHFovCVu",
+      "name": "aud_fia_V05",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "IgiTcMDSHJPIJjnlwIdM",
+      "name": "aud_fia_V04",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "yPWBURQS57P0VcJh4deb",
+      "name": "aud_fia_V03",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "HxuFAkkGVeQs1sDIMF5g",
+      "name": "Claire - Cute & Cheerful JP",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "J6YFreR6shJoaDfv7tLf",
+      "name": "Yuko",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "gARvXPexe5VF3cKZBian",
+      "name": "Mitsuki - Youthful and Clear Female",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "oAlEJuW30knHWhA6cF0e",
+      "name": "Itsuki - Anime energetic voice",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "JTlYtJrcTzPC71hMLOxo",
+      "name": "Yuki - Calm Anime Narrator",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "B8gJV1IhpuegLxdpXFOE",
+      "name": "kuon - Anime Cute Voice",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "hMK7c1GPJmptCzI4bQIu",
+      "name": "Sameno - inviting, Clear and Steady",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "GSFvrPXzdN7bQvY4mEAd",
+      "name": "loli_kawa_yuna",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "fUjY9K2nAIwlALOwSiwc",
+      "name": "loli_kawa_yui",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "6awt6FKyZGV0HyQEwisX",
+      "name": "loli_kawa_suzu",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "KtSs8OSniRPofXnr5PeA",
+      "name": "loli_kawa_sumire",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "8kgj5469z1URcH4MB2G4",
+      "name": "loli_kawa_sakuya",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "KgETZ36CCLD1Cob4xpkv",
+      "name": "loli_kawa_romaco",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "n7534fCgBXcPEM82JQYu",
+      "name": "loli_kawa_pipi",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "lhTvHflPVOqgSWyuWQry",
+      "name": "loli_kawa_hina",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "EkK6wL8GaH8IgBZTTDGJ",
+      "name": "Akari - Bright & Natural Japanese Female - Friendly Voice",
+      "gender": "female",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "dhGvgIx0X6G3xzSWqOye",
+      "name": "Kana - Japanese Young Female",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "MXKtCrra8fvlDUbfKUT1",
+      "name": "Aya - Friendly Casual Japanese Voice",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "3321Alera3fXjEWjjbAX",
+      "name": "reizouko_yuzuha",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "OSwaPSNdfituxkWcjlkR",
+      "name": "reizouko_natsu",
+      "gender": "female",
+      "age": "young",
+      "accent": "kanto"
+    }
+  ],
+  "male": [
+    {
+      "id": "xKeMLfDPjf359YMncl2C",
+      "name": "Kai Sundiata - Deep & Calm",
+      "gender": "male",
+      "age": "middle_aged",
+      "accent": "standard"
+    },
+    {
+      "id": "ScPQKLRUjviCkw0qP47u",
+      "name": "Takayuki Ito – Clear Deep Voice Actor",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "eUTLwfcO5tIWBI4bS4rf",
+      "name": "Ryu - Funny Japanese Male Character",
+      "gender": "male",
+      "age": "middle-aged",
+      "accent": "kanto"
+    },
+    {
+      "id": "D3L9PtKnIVJXdgK444Ey",
+      "name": "Ryu - Samurai Voice",
+      "gender": "male",
+      "age": "middle_aged",
+      "accent": "standard"
+    },
+    {
+      "id": "UUpoAQhpz37lNIWNVLoF",
+      "name": "Kuro — Mature Anime Gentleman",
+      "gender": "male",
+      "age": "middle_aged",
+      "accent": "kanto"
+    },
+    {
+      "id": "jlR1seVYX2VWJK3aysSP",
+      "name": "Yuma_Nar",
+      "gender": "male",
+      "age": null,
+      "accent": "ja-standard"
+    },
+    {
+      "id": "xHIJuxfbR9BGyhUMtTTI",
+      "name": "Y",
+      "gender": "male",
+      "age": "middle-aged",
+      "accent": "ja-kanto"
+    },
+    {
+      "id": "tGhb4uYSV8sWBI31DYU8",
+      "name": "Sho - Natural Japanese Voice",
+      "gender": "male",
+      "age": "middle_aged",
+      "accent": "standard"
+    },
+    {
+      "id": "F8ocrZHRdjmRh0HR6mJL",
+      "name": "Ryou Kasukabe",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "xya0RvcJtofTcFTOdX4E",
+      "name": "koe2mugiAI - Calm, expressive male voice",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "b34JylakFZPlGS0BnwyY",
+      "name": "Kenzo",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "EHMH9cyd1z3rXm4z0Jja",
+      "name": "Japanese Explainer Voice – Yuma Uchida",
+      "gender": "male",
+      "age": "middle_aged",
+      "accent": "standard"
+    },
+    {
+      "id": "8FuuqoKHuM48hIEwni5e",
+      "name": "shohei Japan voice",
+      "gender": "male",
+      "age": "middle_aged",
+      "accent": "standard"
+    },
+    {
+      "id": "NO5A3b3sSzDyJQF7MiNS",
+      "name": "Shohei",
+      "gender": "male",
+      "age": "middle_aged",
+      "accent": "kanto"
+    },
+    {
+      "id": "LIisRj2veIKEBdr6KZ5y",
+      "name": "Hadou – Audiobook & Video Narration Japanese Male v2",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "4oeIbMTUt5QeJy4ZX1FC",
+      "name": "Koichi Yashiro – Deep Cinematic Voice",
+      "gender": "male",
+      "age": "middle_aged",
+      "accent": "standard"
+    },
+    {
+      "id": "CtUbzbpXB2NakSL8sYID",
+      "name": "AKIRA- Warm, Humble, Clear & Friendly",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "Bj4Malc5SZLoXfPtxRxH",
+      "name": "HIRO - Cool Japanese Male Voice",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "xQpTJhLkPZnRFTV4mc3k",
+      "name": "Ren - Smooth & Soothing",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "vY4PC2kSleyw73YRUOI6",
+      "name": "Haru - Soft Anime Boyfriend Voice",
+      "gender": "male",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "tBfOvWrqvlfBiyUGpSAS",
+      "name": "Nao",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "pgIVrZGYamc995tORUsz",
+      "name": "Kudo - Calm Narrator (JP)",
+      "gender": "male",
+      "age": "middle_aged",
+      "accent": "standard"
+    },
+    {
+      "id": "JOcmGzB8OFjY8MhjHHEf",
+      "name": "JUN(Japanese)",
+      "gender": "male",
+      "age": "old",
+      "accent": "standard"
+    },
+    {
+      "id": "AYFJOmHxRJdmf572TQ7R",
+      "name": "Tatsuki",
+      "gender": "male",
+      "age": "middle_aged",
+      "accent": "standard"
+    },
+    {
+      "id": "6wdSVG3CMjPfAthsnMv9",
+      "name": "Makoto　-Japanese male",
+      "gender": "male",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "ss9cJxDAEMXP4wfQ3GPr",
+      "name": "Daisuke",
+      "gender": "male",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "bEg9geTboP3ghzJ9Rt3L",
+      "name": "UMINE - Deep Male Voice -　Calm, Smooth, Alluring",
+      "gender": "male",
+      "age": "middle_aged",
+      "accent": "standard"
+    },
+    {
+      "id": "LjaWbdfZxis9YRrL8L87",
+      "name": "Ryu - Calm Japanese Male Narration",
+      "gender": "male",
+      "age": "middle_aged",
+      "accent": "standard"
+    },
+    {
+      "id": "H8ZPDxbrPcks5hEsi2fq",
+      "name": "Koichi-Deep Calm Japanese Narrator",
+      "gender": "male",
+      "age": "middle_aged",
+      "accent": "standard"
+    },
+    {
+      "id": "YFkT3BsfOFWBx3jfroxH",
+      "name": "Heyhey - Standard Japanese Traditional Male Voice",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "KJje3wzepLiSIQjVGCB6",
+      "name": "Riku - Deep & Calm Male Voice",
+      "gender": "male",
+      "age": "middle_aged",
+      "accent": "standard"
+    },
+    {
+      "id": "TzUI53GPXnGDRdeLAWZ4",
+      "name": "Toshi - calm japanese narrator",
+      "gender": "male",
+      "age": "middle_aged",
+      "accent": "kanto"
+    },
+    {
+      "id": "GxxMAMfQkDlnqjpzjLHH",
+      "name": "Kozy - Professional Japanese Narration",
+      "gender": "male",
+      "age": "middle_aged",
+      "accent": "standard"
+    },
+    {
+      "id": "2UGDsJpBJAiAlF0jQQ7x",
+      "name": "Papazon - Japanese Comedy Villain -",
+      "gender": "male",
+      "age": "middle_aged",
+      "accent": "standard"
+    },
+    {
+      "id": "Mv8AjrYZCBkdsmDHNwcB",
+      "name": "Ishibashi - Strong Japanese Male",
+      "gender": "male",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "hBWDuZMNs32sP5dKzMuc",
+      "name": "Ken-Japanese male",
+      "gender": "male",
+      "age": "middle_aged",
+      "accent": "standard"
+    },
+    {
+      "id": "sRYzP8TwEiiqAWebdYPJ",
+      "name": "voiceactor　hatakekohei",
+      "gender": "male",
+      "age": "middle_aged",
+      "accent": "standard"
+    },
+    {
+      "id": "j210dv0vWm7fCknyQpbA",
+      "name": "Hinata - Inviting, Smooth and Measured",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "3JDquces8E8bkmvbh6Bc",
+      "name": "Otani",
+      "gender": "male",
+      "age": "middle_aged",
+      "accent": "standard"
+    },
+    {
+      "id": "rRab5jkpRHptfg9j6YQ6",
+      "name": "Ryusei - Deep, Energetic and Warm Host",
+      "gender": "male",
+      "age": "middle_aged",
+      "accent": "kanto"
+    },
+    {
+      "id": "YwR8WwCzRiLroxIQvP9f",
+      "name": "SeoToa - Deep & Cinematic Voice",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "4YdULuX6cCG6iCRjMFZM",
+      "name": "Kyo - Low, Soft and Steady",
+      "gender": "male",
+      "age": "middle_aged",
+      "accent": "kanto"
+    },
+    {
+      "id": "DSIHzHE2ucsnmhkE5GKo",
+      "name": "Takuya - Bright Friendly Conversational Voice",
+      "gender": "male",
+      "age": "middle_aged",
+      "accent": "kanto"
+    },
+    {
+      "id": "hV5AJXCCNGT56GPYPLiG",
+      "name": "Takumi - Calm & Healing Voice",
+      "gender": "male",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "cGbEKHsmg38m62yxIWFk",
+      "name": "aira-Anime Cool Voice",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "4sirbXwrtRlmPV80MJkQ",
+      "name": "Sora – Japanese Anime Male Protagonist | Warm & Clear",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "E6Kc2m06tkvciUiqnUhB",
+      "name": "HIRO",
+      "gender": "male",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "shIhVzPeMf1grkHAy7kB",
+      "name": "Professor Wolf - Cool, Sharp and Clear",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "A4AyGcPAjb1pHgflyZZp",
+      "name": "ritsuto - Anime Prince Voice",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "urE3OJfJRxJuk9kAMN0Y",
+      "name": "Gojo - 20s Japanese Male",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "pUgmTF2V1ptIKsYb6qON",
+      "name": "RYO-A calm, slightly low voice",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "r6PXps8L8e51YofYDNqb",
+      "name": "Reiji Kudo-Japanese male.",
+      "gender": "male",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "KdlbMHGeafEyWqPCWkW0",
+      "name": "kiyo",
+      "gender": "male",
+      "age": "middle_aged",
+      "accent": "standard"
+    },
+    {
+      "id": "EbuvaInXUGWtpYRUnKLQ",
+      "name": "sawaro - Japanese voice actor",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "ZcX76PwFSkrkyI78RBTK",
+      "name": "Nayuta - Dark Anime Hero",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "zdWu2I1sJrZsmxJG5rie",
+      "name": "Mitsuwo!日本人男性",
+      "gender": "male",
+      "age": "middle_aged",
+      "accent": "standard"
+    },
+    {
+      "id": "DOL4zlUH4vnnX1hByxsw",
+      "name": "Akira – Charismatic Japanese Male Voice",
+      "gender": "male",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "lfG6BR3yQRoBrnUm4Z8N",
+      "name": "Minto - Bright & Expressive Japanese Male Voice",
+      "gender": "male",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "GKDaBI8TKSBJVhsCLD6n",
+      "name": "reizouko_riku",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    }
+  ],
+  "young_female": [
+    {
+      "id": "xwDy9oDEtzWzFo6FqAI9",
+      "name": "scene_sumika",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "6ZReDmeRP9qcZuwNC3Vv",
+      "name": "aud_riri_V10",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "DpPUi15aFdxHd3pJG2EF",
+      "name": "aud_riri_V09",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "AMqL3sty7WcG3yYRe7lf",
+      "name": "aud_riri_V07",
+      "gender": "female",
+      "age": "young",
+      "accent": "kansai"
+    },
+    {
+      "id": "3fjRiFR1qpMZpeqXtmwX",
+      "name": "aud_riri_V05",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "etp1PCA4xqEUOa61C7BP",
+      "name": "aud_riri_V02",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "dp4HJlekKt0HZFHL2jQg",
+      "name": "Ayaka - Cute, Bright & Clear",
+      "gender": "female",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "5hxwoDKwOHAYjdu9RO9Z",
+      "name": "Riko",
+      "gender": "female",
+      "age": "young",
+      "accent": "ja-kanto"
+    },
+    {
+      "id": "8PfKHL4nZToWC3pbz9U9",
+      "name": "Aoi – Gentle Breeze",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "0yh9saSHWVy78QG1HfNs",
+      "name": "Sumiko Ito",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "aRRpAlz9zwsfcqvwusHA",
+      "name": "Rie –  Natural Customer Care Agent",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "NQZUZmZFxoCYFGj4gD2o",
+      "name": "あいこ",
+      "gender": "female",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "GxhGYQesaQaYKePCZDEC",
+      "name": "Sakura - Japanese Girl",
+      "gender": "female",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "a0MsDWokG5Xsuji8g8er",
+      "name": "Haru - Calm & Friendly Japanese Female",
+      "gender": "female",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "ozfS3gQtjFX3kQyJ12dX",
+      "name": "Saori-Japanese Female",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "tPngN48DaHQOvU1YFqtz",
+      "name": "malo",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "8EkOjt4xTPGMclNlh1pk",
+      "name": "もりおき(morioki)",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "EGPLqH9Wz2tNLu58EJVR",
+      "name": "Sakura – Professional Japanese Narration",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "c2XJrw7TvNGtOc6r0ijG",
+      "name": "Harune - Japanese Professional Narration",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "RBnMinrYKeccY3vaUxlZ",
+      "name": "Sakura Suzuki",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "PmgfHCGeS5b7sH90BOOJ",
+      "name": "Fumi - Calm Japanese Woman",
+      "gender": "female",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "WQz3clzUdMqvBf0jswZQ",
+      "name": "Shizuka - Natural & Soft",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "Raa94hHxcH2itBN60mKp",
+      "name": "MEI.(Japanese female animation voice)",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "uYwU1hsbnP5viqq9qhob",
+      "name": "いろはうた",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "RWZ1lnBIIgPBTpyCnKn2",
+      "name": "aud_riko_R2_07",
+      "gender": "female",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "DIcmWR2oXfmLIlrj43rH",
+      "name": "aud_riko_R2_06",
+      "gender": "female",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "lxNssjs8lZzgD44uVifH",
+      "name": "aud_riko_R2_04",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "T5zZhOYp2nr6YMG0xepT",
+      "name": "aud_riko_R2_02",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "q3eHxuMah31iifOfMrz0",
+      "name": "aud_riko_R2_01",
+      "gender": "female",
+      "age": "young",
+      "accent": "kyushu"
+    },
+    {
+      "id": "iTqcz0mjbxzCZAfsqojU",
+      "name": "aud_riko_V08",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "e2BxPFZzO0e4DYAokSlV",
+      "name": "aud_riko_V04",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "4lOQ7A2l7HPuG7UIHiKA",
+      "name": "aud_linette_V10",
+      "gender": "female",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "uQ3stul4tGaYV51y7No6",
+      "name": "aud_linette_V09",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "UwmChKysRWw5hwbzf6t6",
+      "name": "aud_linette_V08",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "Z5Rahxh8jMhJKEgBfCSS",
+      "name": "aud_linette_V07",
+      "gender": "female",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "l7ME2dcqpdvq6E8sCS24",
+      "name": "aud_linette_V06",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "LCjxmvbOHJFuUnh87ifL",
+      "name": "aud_linette_V04",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "ngvNHfiCrXLPAHcTrZK1",
+      "name": "aud_linette_V03",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "zzahs6DT06h2pEM743ds",
+      "name": "aud_marcela_V07",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "SYjaeawCEiQrxiyl1IWh",
+      "name": "aud_marcela_V06",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "NvhgGxXb4NEIE2LNSzzn",
+      "name": "aud_marcela_V05",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "ugYcuAusTuWCSOpJD0Xd",
+      "name": "aud_marcela_V03",
+      "gender": "female",
+      "age": "young",
+      "accent": "kansai"
+    },
+    {
+      "id": "RheKi7xIMX00tEyMU2i3",
+      "name": "aud_fia_V10",
+      "gender": "female",
+      "age": "young",
+      "accent": "kyushu"
+    },
+    {
+      "id": "EvcqZR7BFM66zSW3VqaP",
+      "name": "aud_fia_V09",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "gHBfNp2PWSyFgpPlzCOd",
+      "name": "aud_fia_V08",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "0ptCJp0xgdabdcpVtCB5",
+      "name": "aud_fia_V06",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "bZjtSxWhBPMzzHFovCVu",
+      "name": "aud_fia_V05",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "IgiTcMDSHJPIJjnlwIdM",
+      "name": "aud_fia_V04",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "yPWBURQS57P0VcJh4deb",
+      "name": "aud_fia_V03",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "HxuFAkkGVeQs1sDIMF5g",
+      "name": "Claire - Cute & Cheerful JP",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "J6YFreR6shJoaDfv7tLf",
+      "name": "Yuko",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "gARvXPexe5VF3cKZBian",
+      "name": "Mitsuki - Youthful and Clear Female",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "oAlEJuW30knHWhA6cF0e",
+      "name": "Itsuki - Anime energetic voice",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "JTlYtJrcTzPC71hMLOxo",
+      "name": "Yuki - Calm Anime Narrator",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "B8gJV1IhpuegLxdpXFOE",
+      "name": "kuon - Anime Cute Voice",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "hMK7c1GPJmptCzI4bQIu",
+      "name": "Sameno - inviting, Clear and Steady",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "GSFvrPXzdN7bQvY4mEAd",
+      "name": "loli_kawa_yuna",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "fUjY9K2nAIwlALOwSiwc",
+      "name": "loli_kawa_yui",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "6awt6FKyZGV0HyQEwisX",
+      "name": "loli_kawa_suzu",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "KtSs8OSniRPofXnr5PeA",
+      "name": "loli_kawa_sumire",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "8kgj5469z1URcH4MB2G4",
+      "name": "loli_kawa_sakuya",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "KgETZ36CCLD1Cob4xpkv",
+      "name": "loli_kawa_romaco",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "n7534fCgBXcPEM82JQYu",
+      "name": "loli_kawa_pipi",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "lhTvHflPVOqgSWyuWQry",
+      "name": "loli_kawa_hina",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "EkK6wL8GaH8IgBZTTDGJ",
+      "name": "Akari - Bright & Natural Japanese Female - Friendly Voice",
+      "gender": "female",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "dhGvgIx0X6G3xzSWqOye",
+      "name": "Kana - Japanese Young Female",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "MXKtCrra8fvlDUbfKUT1",
+      "name": "Aya - Friendly Casual Japanese Voice",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "3321Alera3fXjEWjjbAX",
+      "name": "reizouko_yuzuha",
+      "gender": "female",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "OSwaPSNdfituxkWcjlkR",
+      "name": "reizouko_natsu",
+      "gender": "female",
+      "age": "young",
+      "accent": "kanto"
+    }
+  ],
+  "young_male": [
+    {
+      "id": "ScPQKLRUjviCkw0qP47u",
+      "name": "Takayuki Ito – Clear Deep Voice Actor",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "F8ocrZHRdjmRh0HR6mJL",
+      "name": "Ryou Kasukabe",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "xya0RvcJtofTcFTOdX4E",
+      "name": "koe2mugiAI - Calm, expressive male voice",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "b34JylakFZPlGS0BnwyY",
+      "name": "Kenzo",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "LIisRj2veIKEBdr6KZ5y",
+      "name": "Hadou – Audiobook & Video Narration Japanese Male v2",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "CtUbzbpXB2NakSL8sYID",
+      "name": "AKIRA- Warm, Humble, Clear & Friendly",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "Bj4Malc5SZLoXfPtxRxH",
+      "name": "HIRO - Cool Japanese Male Voice",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "xQpTJhLkPZnRFTV4mc3k",
+      "name": "Ren - Smooth & Soothing",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "vY4PC2kSleyw73YRUOI6",
+      "name": "Haru - Soft Anime Boyfriend Voice",
+      "gender": "male",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "tBfOvWrqvlfBiyUGpSAS",
+      "name": "Nao",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "6wdSVG3CMjPfAthsnMv9",
+      "name": "Makoto　-Japanese male",
+      "gender": "male",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "ss9cJxDAEMXP4wfQ3GPr",
+      "name": "Daisuke",
+      "gender": "male",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "YFkT3BsfOFWBx3jfroxH",
+      "name": "Heyhey - Standard Japanese Traditional Male Voice",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "Mv8AjrYZCBkdsmDHNwcB",
+      "name": "Ishibashi - Strong Japanese Male",
+      "gender": "male",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "j210dv0vWm7fCknyQpbA",
+      "name": "Hinata - Inviting, Smooth and Measured",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "YwR8WwCzRiLroxIQvP9f",
+      "name": "SeoToa - Deep & Cinematic Voice",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "hV5AJXCCNGT56GPYPLiG",
+      "name": "Takumi - Calm & Healing Voice",
+      "gender": "male",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "cGbEKHsmg38m62yxIWFk",
+      "name": "aira-Anime Cool Voice",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "4sirbXwrtRlmPV80MJkQ",
+      "name": "Sora – Japanese Anime Male Protagonist | Warm & Clear",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "E6Kc2m06tkvciUiqnUhB",
+      "name": "HIRO",
+      "gender": "male",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "shIhVzPeMf1grkHAy7kB",
+      "name": "Professor Wolf - Cool, Sharp and Clear",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "A4AyGcPAjb1pHgflyZZp",
+      "name": "ritsuto - Anime Prince Voice",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "urE3OJfJRxJuk9kAMN0Y",
+      "name": "Gojo - 20s Japanese Male",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "pUgmTF2V1ptIKsYb6qON",
+      "name": "RYO-A calm, slightly low voice",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "r6PXps8L8e51YofYDNqb",
+      "name": "Reiji Kudo-Japanese male.",
+      "gender": "male",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "EbuvaInXUGWtpYRUnKLQ",
+      "name": "sawaro - Japanese voice actor",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "ZcX76PwFSkrkyI78RBTK",
+      "name": "Nayuta - Dark Anime Hero",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    },
+    {
+      "id": "DOL4zlUH4vnnX1hByxsw",
+      "name": "Akira – Charismatic Japanese Male Voice",
+      "gender": "male",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "lfG6BR3yQRoBrnUm4Z8N",
+      "name": "Minto - Bright & Expressive Japanese Male Voice",
+      "gender": "male",
+      "age": "young",
+      "accent": "kanto"
+    },
+    {
+      "id": "GKDaBI8TKSBJVhsCLD6n",
+      "name": "reizouko_riku",
+      "gender": "male",
+      "age": "young",
+      "accent": "standard"
+    }
+  ]
+}

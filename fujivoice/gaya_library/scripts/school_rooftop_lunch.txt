@@ -1,0 +1,82 @@
+# ガヤ台本: 屋上・昼休み (school_rooftop_lunch)
+# density=normal / ElevenLabs v4
+
+@clip P1
+F1:
+[casual] 今日のお弁当、昨日のカレーの残りなんだけど悪くない？
+M1:
+[laughing softly] 残りカレーはうまいに決まってる、ちょっと分けて
+F1:
+[teasing] 分けるならシール貼る用紙交換よ、公平にね
+F2:
+[amused] 交換するの大変そう、私は卵焼きくれる
+M1:
+[grateful] 助かる、卵焼きとカレー、最高のコンビだ
+F2:
+[casual] 屋上の風、ちょうどいいから早食いしないで
+F2:
+[casual] じゃあ、その話で進めよう
+
+@clip P2
+M3:
+[cheerful] 空、めちゃ青いな、写真撮ったら映えるぜ
+F3:
+[worried] 撮るなら柵に近づきすぎないで、先生に怒られるわ
+M3:
+[reassuring] 真ん中で撮るよ、今日は換気当番だから屋上開いてる
+F4:
+[matter-of-fact] 換気は三十分限り、ベル前に片付けましょう
+M3:
+[casual] 了解、食べ終わった弁当箱は俺が下に持っていく
+F4:
+[laughing softly] いい子いい子、ゴミは分別ごとにね
+F4:
+[casual] じゃあ、その話で進めよう
+
+@clip P3
+F5:
+[quietly] 隣クラスの噂、来週模試で席替えあるって
+M5:
+[interested] マジか、苦手な教科の先生近くなるかもって話？
+F5:
+[calm] 確定じゃないわよ、生徒会の掲示が出るまで待ち
+M6:
+[skeptical] 待ちても不安は増えるだけだ、勉強は続ける
+F5:
+[teasing] 堅実派の告白ね、参考にするわ
+M6:
+[embarrassed] 告白じゃない、昼休みの話題だろ
+M6:
+[casual] じゃあ、その話で進めよう、そうしよう
+
+@clip P4
+M2:
+[casual] 屋上の植木、水やり当番今日だっけ、ホースどこ置いた？
+F6:
+[matter-of-fact] 給湯室横の棚、朝見たわ、ホースは巻いてある
+M4:
+[amused] 外来語好きね、ホースって日本語で言えばいいのに
+F6:
+[laughing softly] 言い癖よ、もう一回日本語で言ったでしょ
+M4:
+[casual] じゃあ給湯室行く、午後の部活前に終わらせる
+F6:
+[grateful] ありがと、終わったら麦茶入れとくね
+F6:
+[casual] じゃあ、その話で進めよう
+
+@clip M1
+F3:
+[muttering] 英単語、まだ二十個…
+
+@clip M2
+M3:
+[quietly] 先生来た、席に戻ろう
+
+@clip X1
+F4:
+[short] 行こう！
+
+@clip X2
+M5:
+[short] 片付け！

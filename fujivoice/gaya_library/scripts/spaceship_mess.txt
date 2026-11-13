@@ -1,0 +1,82 @@
+# ガヤ台本: 宇宙船食堂 (spaceship_mess)
+# density=normal / ElevenLabs v4
+
+@clip P1
+M1:
+[casual] 人工重力、今朝は零点九五か、スープが端に寄る
+F1:
+[matter-of-fact] トレイの縁を上げれば大丈夫、習慣よ
+M1:
+[laughing softly] 五年目なのに毎朝忘れそうになる
+F2:
+[teasing] 新人の頃は床掃除当番ばっかだったの覚えてる？
+M1:
+[embarrassed] 覚えてる、トレイ落として上司に怒られた
+F2:
+[amused] 今は落とさないわね、成長したものだ
+F2:
+[casual] じゃあ、その話で進めよう、そうしよう
+
+@clip P2
+F3:
+[quietly] 今日のメニュー、合成肉じゃなく本物っぽい豆ヒレらしい
+M2:
+[interested] レアだな、早い者勝ちかも、一行で並ぼう
+F3:
+[worried] 列長すぎない？ シフトまで四十分しかない
+M3:
+[reassuring] 唐揚げセットなら短いレーンある、案内看板見て
+F3:
+[grateful] 見逃してた、ありがと、そっち行くわ
+M3:
+[casual] 席は窓側空いてる、地球見ながら食べよう
+M3:
+[casual] じゃあ、その話で進めよう
+
+@clip P3
+M4:
+[matter-of-fact] リサイクル、パックは分別三種、間違えると罰則
+F4:
+[calm] 覚えたわ、金属は青、生ゴミは緑、他は透明
+M5:
+[nervous] 初出勤で不安、例作ってもらえる？
+F4:
+[reassuring] いいわよ、私の空パック見せるから写して
+M5:
+[grateful] 助かります、食後は必ず返却口へ
+M4:
+[teasing] 完璧になったら教官より詳しくなるぞ
+M4:
+[casual] じゃあ、その話で進めよう、そうしよう、いいわね
+
+@clip P4
+F5:
+[casual] 通信遅延のせいで、家族からの動画が昨夜届いた
+M6:
+[sympathetic] 見た？ 故郷の海、色が鮮やかで羨ましい
+F5:
+[sighing] 見た、泣きそうになったから食堂で見たくなかった
+F6:
+[quietly] 個室ブース空いてる、五分だけ借りよう
+M6:
+[grateful] いいね、戻ったらコーヒー淹れて待ってる
+F6:
+[laughing softly] 優しい船員たち、ここは悪くない船
+F6:
+[casual] じゃあ、その話で進めよう、そうしよう
+
+@clip M1
+F1:
+[muttering] 水分補給、記録しなきゃ…
+
+@clip M2
+M2:
+[quietly] シフト呼び出し、二番艦橋
+
+@clip X1
+F2:
+[short] いただきます！
+
+@clip X2
+M1:
+[short] おかわり！

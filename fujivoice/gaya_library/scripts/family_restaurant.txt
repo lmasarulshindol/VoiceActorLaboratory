@@ -1,0 +1,82 @@
+# ガヤ台本: ファミレス (family_restaurant)
+# density=normal / ElevenLabs v4
+
+@clip P1
+F1:
+[cheerful] ドリンクバー二回目、今日は野菜ジュースにしちゃお
+M1:
+[laughing softly] 健康的だな、俺はコーラのまま粘る
+F1:
+[teasing] 砂糖の塊ね、夕方眠くなるのあなたのせいよ
+M2:
+[casual] 眠気は歩いて帰れば消える、距離三駅くらい
+F1:
+[amused] 三駅歩く気になったの、珍しいわね
+M2:
+[matter-of-fact] 昼食デザート食べ過ぎた自業自得だ
+M2:
+[casual] じゃあ、その話で進めよう、そうしよう
+
+@clip P2
+M3:
+[casual] おかわり自由のサラダ、ドレッシングどれにする？
+F2:
+[quietly] ごまあえで、席は窓際だから人見え過ぎない
+M3:
+[grateful] ありがと、荷物は足元にまとめとく
+F3:
+[matter-of-fact] バッグ落とさないで、通路狭いから
+M3:
+[reassuring] 膝の上に置く、子供連れが通る前に譲る
+F2:
+[laughing softly] いい心がけ、店員さん呼ぶなら手挙げてね
+F2:
+[casual] じゃあ、その話で進めよう、そうしよう
+
+@clip P3
+F4:
+[casual] 限定パフェ、二人で半分こしない？ サイズ大きいの
+M4:
+[interested] いいね、フォークは追加でもらえる？
+F4:
+[teasing] もらえるわよ、ただしクリーム取り合いは禁止
+F5:
+[amused] 幼稚園児みたい、割る前に写真撮ろう
+M4:
+[embarrassed] 撮るの恥ずかしい、食べ始めたら撮って
+F5:
+[casual] 食べかけは映えないから先に一回撮影ね
+F5:
+[casual] じゃあ、その話で進めよう、そうしよう
+
+@clip P4
+M5:
+[sighing] 会計待ち、レジ二つ開いたみたいだ
+F6:
+[calm] 並び替えするなら、さっき来た家族の後ろね
+M6:
+[matter-of-fact] 先に会計済みの人はドア近く、席戻って荷物
+M5:
+[grateful] 助言ありがと、財布先に出す
+F6:
+[quietly] ポイントカード忘れてない？ 今夜期限切れよ
+M6:
+[laughing softly] 期限ギリギリ好きだな、俺はアプリですぐ出す
+M6:
+[casual] じゃあ、その話で進めよう、そうしよう、いいわね
+
+@clip M1
+F2:
+[muttering] 修学旅行の集金、まだ三人…
+
+@clip M2
+M4:
+[quietly] 次のお客様どうぞ
+
+@clip X1
+F3:
+[short] ごちそうさま！
+
+@clip X2
+M5:
+[short] お会計！

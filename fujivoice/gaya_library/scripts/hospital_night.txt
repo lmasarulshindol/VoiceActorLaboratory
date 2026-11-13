@@ -1,0 +1,30 @@
+# ガヤ台本: 病院夜勤 (hospital_night)
+# density=sparse / ElevenLabs v4
+
+@clip P1
+F1:
+[whispers] ナースステーション、まだ静かね、端末の明かりだけ
+M1:
+[quietly] うん、夜勤は三階から回ろう、声落として
+F2:
+[whispers] 点滴のチーム変更、メモ渡した？ 受け取りは済み？
+M1:
+[calm] 済み、カルテも更新した、異常なし
+
+@clip P2
+F3:
+[quietly] 廊下の遠く、誰か歩いてる… 見張りの巡回かしら
+M2:
+[whispers] たぶんそうだ、俺たちはステーションに戻って待機
+F3:
+[worried] 患者さんのベル、まだ鳴らないでくれてるわね
+M2:
+[reassuring] 鳴ったら即応する、今は眠らせる時間だ
+
+@clip M1
+F4:
+[muttering] 採血キット、あと二本…
+
+@clip X1
+F5:
+[short] おやすみ。

@@ -1,0 +1,82 @@
+# ガヤ台本: 放課後の廊下／部室前 (school_hallway_after)
+# density=normal / ElevenLabs v4
+
+@clip P1
+F1:
+[casual] ねえ、文化部の練習、今日は何時までなの？
+F2:
+[matter-of-fact] 五時過ぎまでらしい、窓から明かりついてるわ
+F1:
+[laughing softly] そっか、先に夕方弁当はシェアしとこ
+M1:
+[casual] 俺は理科室の戸締まり当番、約五分で終わるから待って
+F2:
+[teasing] 当番なのに忘れてた顔してる、チラシ貼ったでしょ
+M1:
+[embarrassed] 見たけど頭に入らなかった、一緒に行くわ
+M1:
+[casual] じゃあ、その話で進めよう
+
+@clip P2
+M2:
+[quietly] 廊下、足音が響きすぎない？ 先生まだ残ってるかも
+F3:
+[worried] 小声で話そう、今日は進路指導の延長日よ
+M3:
+[casual] 進路より先に、明日の小テストの範囲を聞きたいんだ
+F3:
+[reassuring] 範囲は黒板横、写真撮っておけば足りるわ
+M3:
+[grateful] 助かる、帰る前にノート写メ送ってくれる？
+F3:
+[amused] いいわよ、ただし変なスタンプは付けない約束ね
+F3:
+[casual] じゃあ、その話で進めよう
+
+@clip P3
+F4:
+[cheerful] 部室前、まだ誰もいないみたい、先に鍵借りに行こっか
+M4:
+[casual] 顧問は体育館側の会議中だって、裏口が早いかも
+F4:
+[quietly] 裏口は暗いから懐中電灯持ってた方がいいわね
+M5:
+[matter-of-fact] 俺が持ってる、電池替えたばっかだ
+F4:
+[laughing softly] 頼もしい、じゃあ先に荷物置いてくる
+M5:
+[casual] 了解、靴は揃えとくから勝手に入ってていいぞ
+M5:
+[casual] じゃあ、その話で進めよう
+
+@clip P4
+M6:
+[sighing] 今日の掃除当番、モップが乾かなくて最後まで残った
+F5:
+[sympathetic] それつらいわね、明日の朝一番で仕上げよう
+M6:
+[determined] うん、久保さんに一言言っとく、譲ってもらう
+F6:
+[teasing] 譲り合い職人ね、お礼に缶コーヒー奢るわ
+F5:
+[grateful] ありがと、あんた優しいのよね
+M6:
+[embarrassed] そんな大げさな、さっさと部室行こうぜ
+M6:
+[casual] じゃあ、その話で進めよう、そうしよう
+
+@clip M1
+F1:
+[muttering] 部費、今月もギリギリ…
+
+@clip M2
+M1:
+[quietly] 顧問来る、姿勢正して
+
+@clip X1
+F2:
+[short] お先に！
+
+@clip X2
+M2:
+[short] お疲れ！

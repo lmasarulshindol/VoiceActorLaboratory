@@ -1,0 +1,80 @@
+# ガヤ台本: コンビニ夜 (convenience_night)
+# density=normal / ElevenLabs v4
+
+@clip P1
+F1:
+[casual] 夜勤前の補給、温かいおにぎり二つで足りるかな
+M1:
+[matter-of-fact] 汁物あると助かる、カップスープ一個追加しよう
+F1:
+[laughing softly] あなたいつも量大い、私はサラダでバランス取る
+M2:
+[teasing] バランスいいね、レジ待ち少ないうちに決めよう
+F1:
+[grateful] ありがと、ポイントタッチはあなたが得意でしょ
+M2:
+[casual] 任せろ、バーコードうまく当てる練習してる
+
+@clip P2
+M3:
+[quietly] 深夜でも学生客多いな、試験前の買い出しか
+F2:
+[sympathetic] 辛いわね、慌てて選ばないようゆっくり見て
+M3:
+[reassuring] 俺たちも急いでない、あと十分で店出る
+F3:
+[casual] 牛乳の賞味期限、手前棚の方が新しいわよ
+M3:
+[grateful] 気付いてくれて助かる、それ買う
+F2:
+[amused] 常連の目利き、店員より敏いんじゃない
+F2:
+[casual] じゃあ、その話で進めよう、そうしよう、いいわね
+
+@clip P3
+F4:
+[cheerful] 新作スイーツ、一個だけ我慢できなくて手に取っちゃった
+M4:
+[laughing softly] 可愛い理由、半分こすれば罪悪感半分
+F4:
+[teasing] 半分こなら太らないって言うけど、嘘でしょ
+M5:
+[amused] 嘘じゃない、カロリーは割れば減る、理屈はわかる
+M4:
+[casual] 理屈だけでは太る、今日は走って帰ろう
+F4:
+[determined] いいわ、買ったなら走る、約束ね
+F4:
+[casual] じゃあ、その話で進めよう
+
+@clip P4
+M6:
+[sighing] アイスコーヒー売り切れか、仕方ない別のにする
+F5:
+[calm] ペットの無糖あるわ、砂糖入れれば近い味
+F6:
+[matter-of-fact] レジ横に砂糖置いてある、自分で調整して
+M6:
+[grateful] 親切だ、じゃあ無糖で、砂糖少なめ
+F5:
+[quietly] 夜はカフェイン控えめがいいわよ
+F6:
+[laughing softly] 心配してくれるのは嬉しい、今日だけ特別
+F6:
+[casual] じゃあ、その話で進めよう、そうしよう、いいわね
+
+@clip M1
+F3:
+[muttering] 明日の朝ごはん、何にしよう…
+
+@clip M2
+M3:
+[quietly] 次のお客様いらっしゃい
+
+@clip X1
+F5:
+[short] お疲れ様！
+
+@clip X2
+M5:
+[short] ありがとう！

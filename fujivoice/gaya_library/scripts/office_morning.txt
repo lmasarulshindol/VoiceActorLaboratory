@@ -1,0 +1,82 @@
+# ガヤ台本: オフィス朝 (office_morning)
+# density=normal / ElevenLabs v4
+
+@clip P1
+M1:
+[casual] 今朝の会議、資料の配布は受付前でいいって言われた
+F1:
+[matter-of-fact] 了解、印刷は済んでる、綴じは左揃えで
+M1:
+[grateful] 助かる、俺は会議室の椅子の数を数えてくる
+F2:
+[quietly] 人数より通路の幅、避難経路を塞がないようね
+M1:
+[reassuring] 通路は三列分空ける、昨日の指示どおり
+F2:
+[laughing softly] 堅いわね、でも助かるわ
+F2:
+[casual] じゃあ、その話で進めよう、そうしよう
+
+@clip P2
+F3:
+[worried] エレベーター混んでる、階段で上がろうかしら
+M2:
+[casual] 三階までなら階段が早い、荷物は軽い
+F3:
+[sighing] 膝が痛い日は避けたいのよ、待ち時間どれくらい？
+M3:
+[matter-of-fact] 今の表示だと二分、待てそうならエレでいい
+F3:
+[grateful] じゃあ待つわ、会議五分前に着けば十分ね
+M3:
+[teasing] 時間に厳しい顔、今朝は余裕あるじゃん
+M3:
+[casual] じゃあ、その話で進めよう
+
+@clip P3
+M4:
+[cheerful] 新人の初出勤、ネクタイの結び方が左右で違うぜ
+F4:
+[amused] 気づいてあげて、直すなら声かけは優しく
+M5:
+[embarrassed] 見られてたか、鏡見る時間が足りなかった
+F4:
+[reassuring] 大丈夫、一度直せば覚えるわ、私も最初そうだった
+M4:
+[casual] 休憩でコツ教えてやる、今日は業務優先で
+M5:
+[grateful] ありがとうございます、資料運びから手伝います
+M5:
+[casual] じゃあ、その話で進めよう
+
+@clip P4
+F5:
+[quietly] コーヒーメーカー、豆が少ないから補充お願いできる？
+M6:
+[casual] 倉庫に新しい袋ある、五分で戻る
+F6:
+[matter-of-fact] 午前の来客用、カップも追加で揃えといて
+M6:
+[reassuring] 了解、紙コップは百個入りを開封する
+F5:
+[grateful] 助かるわ、来客は十時からね
+F6:
+[laughing softly] 余裕見て余裕なくなるタイプね
+F6:
+[casual] じゃあ、その話で進めよう、そうしよう、いいわね、それでいこう
+
+@clip M1
+F2:
+[muttering] 見積、締切今日…
+
+@clip M2
+M1:
+[quietly] 上司来た、挨拶しよう
+
+@clip X1
+F6:
+[short] おはよう！
+
+@clip X2
+M2:
+[short] お疲れ様！

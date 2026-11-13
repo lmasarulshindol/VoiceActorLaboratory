@@ -1,0 +1,80 @@
+# ガヤ台本: 居酒屋歓迎会 (izakaya_welcome)
+# density=normal / ElevenLabs v4
+
+@clip P1
+M1:
+[cheerful] 今日は歓迎会だ、最初の一杯は先輩が出すから遠慮すんな
+F1:
+[embarrassed] ありがとうございます、でも飲みすぎないよう気をつけます
+M1:
+[laughing softly] 堅いな、焼き鳥は取り分け自由だから好きなだけ
+F2:
+[teasing] 新人にタレ浸けルール教えた？ 二度漬け禁止よ
+M1:
+[matter-of-fact] 教えた教えた、罰ゲームは俺が引き受ける
+F2:
+[amused] 引き受けんの怖い、店員さんに怒られるわ
+
+@clip P2
+F3:
+[casual] 席、入り口側空いてるわ、荷物は棚に上げて
+M2:
+[grateful] 助かる、ブレザーはそこに掛けていい？
+F3:
+[reassuring] いいわよ、隣に小染みあるからそこ避けてね
+M3:
+[worried] 大丈夫、染みなら俺が当たる、店が狭いだけ
+F3:
+[laughing softly] 騎士だわ、じゃあ乾杯の音頭は誰が取る？
+M3:
+[casual] 先輩任せで、俺はグラス持ち上げる
+M3:
+[casual] じゃあ、その話で進めよう、そうしよう
+
+@clip P3
+M4:
+[cheerful] 名刺交換は宴の後でいい、今日は顔と名前だけ覚えよう
+F4:
+[quietly] 分かった、私からは自己紹介短めでいくわね
+M5:
+[nervous] 長居てもいいですか、終電前に帰りたくて
+F4:
+[calm] 大丈夫、幹事が時間読んでくれるから安心して
+M5:
+[grateful] 安心した、研修の話は明日に回したいです
+M4:
+[amused] 賢い、今日は乾杯と焼き鳥だけで十分だ
+M4:
+[casual] じゃあ、その話で進めよう
+
+@clip P4
+F5:
+[teasing] 二次会の話、もう出てるけど参加は任意ね
+M6:
+[skeptical] 任意って言うけど、顔色見られそうだな
+F6:
+[matter-of-fact] 断っても問題ないわ、理由は一言でいいの
+M6:
+[casual] じゃあ明日早い、で切る、無理に付き合わない
+F5:
+[grateful] その言い方で十分、無理は病気になるわ
+F6:
+[laughing softly] 達観早い新人、歓迎よ
+F6:
+[casual] じゃあ、その話で進めよう、そうしよう、いいわね、それでいこう
+
+@clip M1
+F3:
+[muttering] お会計、幹事まだ…
+
+@clip M2
+M4:
+[quietly] 店員、お冷ください
+
+@clip X1
+F1:
+[short] 乾杯！
+
+@clip X2
+M1:
+[short] かんぱい！
